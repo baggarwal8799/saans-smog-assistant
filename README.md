@@ -2,6 +2,8 @@
 
 **Saans** (Hindi for *breath*) is a Gen-AI assistant that helps families and communities get through severe winter smog. It reads **live air quality for your location**, learns a little about **your household and lifestyle**, and builds a plan with four parts:
 
+**Live demo:** [saans-smog-assistant.vercel.app](https://saans-smog-assistant.vercel.app/)
+
 1. **Low-emission daily routines**: the cleanest hours to go out (weighing PM2.5 *and* ozone), a **winter smog-trap alert** (cold, still air that holds smoke at breathing height, from forecast wind and mixing height), a cleaner commute (only a switch that cuts emissions by at least 25%: cars to the bus, auto-rickshaws and motorbikes to the metro), when to keep children and elders indoors, and N95 guidance. Workouts move indoors from AQI 151, following US EPA guidance.
 2. **Indoor air quality hacks**: when to air the house, a DIY box-fan purifier, kitchen exhaust, wet cleaning, and which myths to skip.
 3. **Sustainable alternatives**: safe heating (carbon-monoxide safety comes first), clean cooking fuel, alternatives to waste burning, smoke-free mosquito control, and a cleaner commute.
