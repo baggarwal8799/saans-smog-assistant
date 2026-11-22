@@ -9,8 +9,14 @@ import { buildUserPrompt } from './prompt';
 import { parseAssistantRequest } from './validate';
 
 export const place = { name: 'New Delhi', lat: 28.61, lon: 77.21, region: 'Delhi', country: 'India' };
-export const body = (overrides: Record<string, unknown> = {}) =>
-  ({ lang: 'en', mode: 'summary', question: '', place, profile: profile(), ...overrides });
+export const body = (overrides: Record<string, unknown> = {}) => ({
+  lang: 'en',
+  mode: 'summary',
+  question: '',
+  place,
+  profile: profile(),
+  ...overrides,
+});
 
 /** A validated question request, and a validated summary request. */
 export const ask = (question: string, o: Record<string, unknown> = {}) =>
@@ -78,8 +84,7 @@ function bodyText(input: unknown): string {
 /** The request body sent to Gemini in a recorded call, and its prompt text. */
 export const sentBody = (f: ReturnType<typeof gemini>, call = 0): SentBody => {
   const rawBody = f.mock.calls[call]?.[1]?.body;
-  const parsed = JSON.parse(bodyText(rawBody));
-  return parsed as SentBody;
+  return JSON.parse(bodyText(rawBody)) as SentBody;
 };
 export const sentPrompt = (f: ReturnType<typeof gemini>, call = 0): string =>
   sentBody(f, call).contents[0]?.parts[0]?.text ?? '';

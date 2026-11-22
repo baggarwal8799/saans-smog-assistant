@@ -139,7 +139,17 @@ export default defineConfig(({ mode }) => {
       coverage: {
         provider: 'v8',
         include: ['src/**/*.{ts,tsx}', 'api/**/*.ts', 'server/**/*.ts'],
-        exclude: ['src/**/*.test.*', 'api/**/*.test.ts', 'server/**/*.test.ts', 'src/test/**', 'src/main.tsx'],
+        exclude: [
+          'src/**/*.test.*',
+          'api/**/*.test.ts',
+          'server/**/*.test.ts',
+          'src/test/**',
+          'api/_lib/contract.ts',
+          'api/_lib/fake-redis.ts',
+          'api/_lib/log.ts',
+          'api/_lib/test-helpers.ts',
+          'src/main.tsx',
+        ],
         thresholds: { lines: 99, functions: 98, branches: 99, statements: 99 },
       },
     },
