@@ -33,7 +33,10 @@ export function fakeRedis() {
   };
   const fetchImpl = vi.fn<typeof fetch>((input, init) => {
     const auth = (init?.headers as Record<string, string> | undefined)?.authorization;
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    let url: string;
+    if (typeof input === 'string') url = input;
+    else if (input instanceof URL) url = input.href;
+    else url = input.url;
     if (url !== `${REDIS_URL}/pipeline` || auth !== `Bearer ${REDIS_TOKEN}`) {
       return Promise.resolve(new Response('{"error":"Unauthorized"}', { status: 401 }));
     }
