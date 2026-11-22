@@ -1,0 +1,121 @@
+/* ---------- Loading: skeletons and spinners ---------- */
+
+.skeleton {
+  display: grid;
+  gap: 1rem;
+}
+.skel {
+  display: block;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--skel) 0%, var(--skel-hi) 50%, var(--skel) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+.skel-title {
+  height: 1.9rem;
+  width: min(28rem, 80%);
+}
+.skel-reading {
+  display: flex;
+  gap: 1.25rem;
+  align-items: center;
+}
+.skel-badge {
+  width: clamp(6.75rem, 26vw, 9.5rem);
+  height: 7rem;
+  border-radius: 24px;
+  flex: none;
+}
+.skel-lines {
+  display: grid;
+  gap: 0.6rem;
+  flex: 1;
+}
+.skel-line {
+  height: 0.95rem;
+}
+.w40 {
+  width: 40%;
+}
+.w60 {
+  width: 60%;
+}
+.w70 {
+  width: 70%;
+}
+.w90 {
+  width: 90%;
+}
+.w100 {
+  width: 100%;
+}
+.skel-ribbon {
+  display: grid;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  gap: 3px;
+  height: 110px;
+  align-items: end;
+}
+.skel-bar {
+  border-radius: 4px 4px 1px 1px;
+}
+.skel-step {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr);
+  gap: 1rem;
+}
+.skel-num {
+  width: 2rem;
+  height: 2.6rem;
+}
+.answer-skeleton {
+  gap: 0.6rem;
+  padding: 1rem;
+  background: var(--paper);
+  border-radius: 14px;
+}
+/* Same height as the form's first fields, so the editor replaces it without a large jump. */
+.fields-skeleton {
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.fields-skeleton .w100 {
+  height: 2.6rem;
+}
+.spinner {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-right: 0.5em;
+  vertical-align: -0.15em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.step-kind {
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+  margin-top: -0.25rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

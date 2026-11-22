@@ -1,0 +1,117 @@
+/* More ways: quiet rows */
+.category + .category {
+  margin-top: 1.25rem;
+}
+.category h4 {
+  font-size: 1.1rem;
+  color: var(--ink-soft);
+  margin-bottom: 0.25rem;
+}
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.row-item {
+  border-top: 1px solid var(--line);
+}
+.row-item:last-child {
+  border-bottom: 1px solid var(--line);
+}
+/*
+ * Flex with wrapping, not a `1fr auto` grid: an auto column sized to two badges squeezes the title to one word a
+ * line. The title asks for a readable width first; when title and badges do not fit side by side, the badges
+ * move under it.
+ */
+.row-item summary {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  align-items: center;
+  padding: 0.8rem 2rem 0.8rem 0;
+  position: relative;
+  min-height: 48px;
+}
+.row-item summary::-webkit-details-marker {
+  display: none;
+}
+.row-item summary::after {
+  content: '';
+  position: absolute;
+  right: 0.4rem;
+  top: 50%;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-right: 2px solid var(--ink-soft);
+  border-bottom: 2px solid var(--ink-soft);
+  transform: translateY(-70%) rotate(45deg);
+}
+.row-item details[open] summary::after {
+  transform: translateY(-30%) rotate(-135deg);
+}
+.row-title {
+  font-weight: 600;
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+.row-body {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0 0 1rem;
+  max-width: var(--measure);
+}
+.row-why {
+  color: var(--ink-soft);
+}
+
+/* Ask */
+.ask-form {
+  display: grid;
+  gap: 0.4rem;
+}
+.ask-form label {
+  font-weight: 600;
+}
+.ask-form button,
+.ask > button {
+  justify-self: start;
+}
+.answer {
+  margin: 0;
+  padding: 1rem;
+  background: var(--paper);
+  border-radius: 14px;
+  display: grid;
+  gap: 0.4rem;
+}
+.answer figcaption {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+.answer-text {
+  display: grid;
+  gap: 0.5rem;
+}
+.answer-text ul {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+/* Footer */
+.site-footer {
+  max-width: var(--page);
+  margin: 0 auto;
+  padding: 1.5rem 16px 2.5rem;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 0.5rem;
+}
+.site-footer p {
+  max-width: var(--measure);
+}
+
+

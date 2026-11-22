@@ -1,0 +1,121 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--text);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--display);
+  font-weight: 600;
+  line-height: 1.2;
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -4rem;
+  z-index: 10;
+  background: var(--sky);
+  color: var(--sky-ink);
+  padding: 0.6rem 1rem;
+  border-radius: 10px;
+}
+.skip-link:focus {
+  top: 1rem;
+}
+
+.note {
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+}
+/* The sample household is a starting point, not the person's own: say so where they will see it. */
+.sample-note {
+  color: var(--ink);
+  border-left: 3px solid var(--line);
+  padding-left: 0.6rem;
+}
+.status {
+  color: var(--ink-soft);
+}
+.status:empty,
+.error:empty {
+  display: none;
+}
+.error {
+  color: var(--bad);
+  font-weight: 600;
+}
+
+/* ---------- Controls ---------- */
+
+button {
+  font: inherit;
+  font-weight: 600;
+  min-height: 48px;
+  padding: 0.5rem 1.25rem;
+  border-radius: 12px;
+  border: 2px solid var(--sky);
+  background: var(--sky);
+  color: var(--sky-ink);
+  cursor: pointer;
+}
+button.ghost {
+  background: transparent;
+  color: var(--sky);
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1.5px solid var(--ink-soft);
+  border-radius: 12px;
+  padding: 0.6rem 0.8rem;
+  min-height: 48px;
+  width: 100%;
+}
+textarea {
+  resize: vertical;
+}
+

@@ -1,0 +1,63 @@
+{
+  "name": "saans-smog-assistant",
+  "version": "1.0.0",
+  "description": "Saans: a Gen-AI assistant that helps families get through winter smog with low-emission routines, indoor air fixes and greener swaps, each with its impact explained.",
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4173 --strictPort",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "check:size": "node scripts/check-size.mjs",
+    "check:live": "node scripts/live-check.mjs",
+    "check:ai": "node scripts/eval-ai.mjs",
+    "shots": "node scripts/screenshots.mjs",
+    "ci": "npm run lint && npm run typecheck && npm run test:coverage && npm run build && npm run check:size",
+    "verify:all": "npm run ci && npm run test:e2e",
+    "build:server": "vite build --ssr server/index.ts --outDir dist-server --emptyOutDir",
+    "start": "node dist-server/index.js",
+    "build:all": "npm run build && npm run build:server",
+    "check:clickthrough": "node scripts/clickthrough.mjs",
+    "demo:video": "node scripts/demo-video.mjs"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@fontsource/baloo-2": "^5.3.0",
+    "@fontsource/mukta": "^5.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@eslint/js": "^9.39.5",
+    "@playwright/test": "^1.65.1",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.12",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "@vitest/coverage-v8": "^5.1.0",
+    "axe-core": "^4.14.1",
+    "eslint": "^9.39.5",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.14.0",
+    "jsdom": "^31.0.1",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.73.0",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
+  },
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "{\n\"offTopic\": false,\n\"reply\": \"no\",\n\"lines\": [\n\"No, keep the children indoors all day today.\",\n\"US AQI 260 at 06:00 is Very unhealthy, meaning sensitive groups like children should avoid all physical activity outdoors.\",\n\"No hour in the next 24 hours is fit for outdoor activity for your household.\",\n\"Shut windows to keep outdoor smoke out.\",\n\"Move today's 30-minute workout indoors to cut PM2.5 exposure by about 40%.\",\n\"Wet-mop floors instead of sweeping to reduce stirred-up dust.\"\n]\n}",
+            "thoughtSignature": "scrubbed"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 2122,
+    "candidatesTokenCount": 142,
+    "totalTokenCount": 2383,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 2122
+      }
+    ],
+    "thoughtsTokenCount": 119,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.1-flash-lite",
+  "responseId": "scrubbed"
+}

@@ -1,0 +1,80 @@
+/*
+ * Saans — "the sky over your city".
+ * One bold idea: the top band takes the colour of today's air, and a 24-hour ribbon of bars shows the
+ * day ahead. Everything below is quiet: plain rows, generous spacing, one accent (clear-sky blue).
+ * Type: Baloo 2 (display) + Mukta (text), both by Ek Type, both drawn for Devanagari and Latin.
+ */
+
+:root {
+  color-scheme: light;
+  --paper: #f4f7fa;
+  --surface: #ffffff;
+  --ink: #142230;
+  --ink-soft: #44566a;
+  --line: #d5dee7;
+  --sky: #1c5bb0;
+  --sky-ink: #ffffff;
+  --sky-tint: #e2ecf8;
+  --haze-tint: #f3e8d2;
+  --good: #1e7a46;
+  --good-tint: #ddf1e4;
+  --bad: #a3261b;
+  --bad-tint: #f9dedb;
+  --focus: #1a56db;
+  --skel: #cdd8e3;
+  --skel-hi: #e4ebf2;
+  --band-none: #e6eef6;
+  --band-good: #dcf1e3;
+  --band-moderate: #f4ecc9;
+  --band-sensitive: #f8e0c8;
+  --band-unhealthy: #f6d6d2;
+  --band-veryUnhealthy: #e9d9f0;
+  --band-hazardous: #ecd3d8;
+  --lvl-good: #1b7f3b;
+  --lvl-moderate: #8a6d00;
+  --lvl-sensitive: #b25000;
+  --lvl-unhealthy: #b3261e;
+  --lvl-veryUnhealthy: #6a1b9a;
+  --lvl-hazardous: #5d1020;
+  --display: 'Baloo 2', 'Mukta', system-ui, sans-serif;
+  --text: 'Mukta', system-ui, -apple-system, 'Segoe UI', 'Noto Sans Devanagari', sans-serif;
+  --measure: 66ch;
+  --page: 1120px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --paper: #0e1620;
+    --surface: #152230;
+    --ink: #e4ecf3;
+    --ink-soft: #a7b7c7;
+    --line: #2a3b4d;
+    --sky: #8db8f2;
+    --sky-ink: #0b1a2b;
+    --sky-tint: #1b324d;
+    --haze-tint: #3a3020;
+    --good: #7fd3a0;
+    --good-tint: #173828;
+    --bad: #ff9b90;
+    --bad-tint: #42201d;
+    --focus: #8ab4ff;
+    --skel: #22344a;
+    --skel-hi: #2d4560;
+    --band-none: #13202d;
+    --band-good: #12301f;
+    --band-moderate: #2f2a12;
+    --band-sensitive: #3a2614;
+    --band-unhealthy: #3d1c1a;
+    --band-veryUnhealthy: #2e1d3a;
+    --band-hazardous: #3a1820;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --ink-soft: var(--ink);
+    --line: var(--ink);
+  }
+}
+

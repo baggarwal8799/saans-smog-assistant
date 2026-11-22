@@ -1,0 +1,175 @@
+/* The 24-hour ribbon */
+.ribbon {
+  margin: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.ribbon-caption {
+  font-weight: 600;
+}
+.ribbon-bars {
+  display: grid;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  gap: 3px;
+  height: 128px;
+  align-items: stretch;
+}
+.bar {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  min-width: 0;
+}
+.bar .fill {
+  align-self: end;
+  display: block;
+  border-radius: 4px 4px 1px 1px;
+  min-height: 6px;
+}
+.bar .tick {
+  font-size: 0.75rem;
+  color: var(--ink-soft);
+  text-align: center;
+  line-height: 1.6;
+  height: 1.2rem;
+}
+.lvl-good {
+  background: var(--lvl-good);
+}
+.lvl-moderate {
+  background: var(--lvl-moderate);
+}
+.lvl-sensitive {
+  background: var(--lvl-sensitive);
+}
+.lvl-unhealthy {
+  background: var(--lvl-unhealthy);
+}
+.lvl-veryUnhealthy {
+  background: var(--lvl-veryUnhealthy);
+}
+.lvl-hazardous {
+  background: var(--lvl-hazardous);
+}
+.bar.best .fill {
+  outline: 3px solid var(--good);
+  outline-offset: 2px;
+}
+.bar.worst .fill {
+  outline: 3px dashed var(--bad);
+  outline-offset: 2px;
+}
+.ribbon-key {
+  display: flex;
+  gap: 1.25rem;
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+.key::before {
+  content: '';
+  display: inline-block;
+  width: 0.9rem;
+  height: 0.9rem;
+  margin-right: 0.4rem;
+  vertical-align: -0.1rem;
+  border-radius: 3px;
+}
+.key.best::before {
+  border: 3px solid var(--good);
+}
+.key.worst::before {
+  border: 3px dashed var(--bad);
+}
+
+/* The text alternative to the bars: closed by default and quiet, but a real control for keyboards and readers. */
+.ribbon-table {
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+.ribbon-table summary {
+  min-height: 44px;
+  padding: 0.6rem 0;
+  box-sizing: border-box;
+}
+.ribbon-table table {
+  border-collapse: collapse;
+  width: 100%;
+  max-width: 22rem;
+}
+.ribbon-table th,
+.ribbon-table td {
+  padding: 0.15rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ribbon-table th[scope='col'] {
+  font-weight: 600;
+}
+
+.trap {
+  padding: 0.75rem 0.9rem;
+  border-radius: 12px;
+  border-left: 6px solid var(--lvl-veryUnhealthy);
+  background: var(--surface);
+}
+@media (min-width: 900px) {
+  .trap {
+    grid-column: 1 / -1;
+  }
+}
+
+.windows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.window {
+  padding: 0.6rem 0.9rem;
+  border-radius: 12px;
+  border-left: 6px solid;
+  background: var(--surface);
+}
+.window.good {
+  border-left-color: var(--good);
+}
+.window.bad {
+  border-left-color: var(--bad);
+}
+
+.air-reading,
+.air-forecast {
+  display: grid;
+  gap: 1.25rem;
+  align-content: start;
+  min-width: 0;
+}
+@media (min-width: 900px) {
+  .air-now {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    column-gap: 3rem;
+  }
+  .air-place,
+  .air-updated {
+    grid-column: 1 / -1;
+  }
+  /* "Change place" sits at the end of the heading row instead of taking a row of its own. */
+  .sky-inner:has(.locate-bar) {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .sky-inner:has(.locate-bar) > .locate {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .sky-inner:has(.locate-bar) > .air-now,
+  .sky-inner:has(.locate-bar) > .status,
+  .sky-inner:has(.locate-bar) > .air-error {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+  .sky-inner:has(.locate-bar) .air-place {
+    padding-right: 11rem;
+  }
+}
+

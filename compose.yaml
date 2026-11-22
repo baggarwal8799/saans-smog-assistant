@@ -1,0 +1,22 @@
+# One command: copy .env.example to .env, add your key, then
+#   docker compose up --build
+# and open http://localhost:8080 (or the PORT you set in .env).
+services:
+  saans:
+    build: .
+    image: saans-smog-assistant:latest
+    container_name: saans
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      PORT: 8080
+      PUBLIC_URL: "http://localhost:${PORT:-8080}"
+    ports:
+      - "${PORT:-8080}:8080"
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL

@@ -1,0 +1,23 @@
+node_modules/
+dist/
+coverage/
+.vercel/
+.env
+.env.*
+!.env.example
+*.log
+*.mp4
+*.mov
+.DS_Store
+playwright-report/
+test-results/
+.playwright-mcp/
+screenshots/
+dist-server/
+demo/
+
+# Claude Code pointer (AGENTS.md is the shared guide)
+CLAUDE.md
+
+# Private submission answers and LinkedIn draft (never published)
+SUBMISSION-NOTES.md

@@ -1,0 +1,16 @@
+node_modules
+dist
+dist-server
+coverage
+test-results
+playwright-report
+screenshots
+.git
+.github
+.vercel
+.env
+.env.*
+!.env.example
+*.log
+demo
+SUBMISSION-NOTES.md

@@ -1,0 +1,63 @@
+/* ---------- Top bar ---------- */
+
+.topbar {
+  max-width: var(--page);
+  margin: 0 auto;
+  padding: 0.75rem 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.logo {
+  width: 2rem;
+  height: 2rem;
+  align-self: center;
+}
+.logo path {
+  fill: none;
+  stroke: var(--sky);
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+.brand-name {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+.brand-tagline {
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+}
+@media (max-width: 560px) {
+  .brand-tagline {
+    display: none;
+  }
+}
+/*
+ * The "हिन्दी" label is the only Devanagari on an English page. Drawing it with the system font means English
+ * visitors never download the ~300 KB of Devanagari web fonts; Hindi pages still get Baloo 2 and Mukta.
+ */
+button.lang [lang='hi'] {
+  font-family: system-ui, 'Noto Sans Devanagari', 'Nirmala UI', sans-serif;
+}
+button.lang {
+  min-height: 44px;
+  padding: 0.35rem 1rem;
+}
+/* While the Hindi dictionary loads the label stays put (no layout jump); only the cursor says it is working. */
+button.lang[aria-busy='true'] {
+  cursor: progress;
+}
+
+main:focus {
+  outline: none;
+}
+

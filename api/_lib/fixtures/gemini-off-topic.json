@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "{\n\"offTopic\": true,\n\"reply\": \"none\",\n\"lines\": [\n\"I cannot write a poem about cricket as my purpose is to help you manage air pollution and protect your family's health.\",\n\"The current air quality is US AQI 260 at 06:00, which is Very unhealthy.\",\n\"Because you have children, they should avoid all physical activity outdoors today.\",\n\"Please keep windows shut to keep outdoor smoke out.\",\n\"No hour in the next 24 hours is fit for outdoor activity for your household.\",\n\"Consider moving your 30-minute daily exercise indoors to reduce exposure.\"\n]\n}",
+            "thoughtSignature": "scrubbed"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 2117,
+    "candidatesTokenCount": 143,
+    "totalTokenCount": 2358,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 2117
+      }
+    ],
+    "thoughtsTokenCount": 98,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.1-flash-lite",
+  "responseId": "scrubbed"
+}

@@ -1,0 +1,22 @@
+# Saans
+
+> Saans is a free web app that helps families and communities cope with winter smog and urban air pollution. It reads live air quality for a location, takes a short household profile, and suggests low-emission daily routines, indoor air-quality fixes, sustainable swaps and community actions, each with its health and CO2 impact explained.
+
+## What it does
+
+- Live air quality (US AQI, PM2.5, PM10, NO2, O3) and a 48-hour forecast from Open-Meteo (CAMS).
+- The cleanest and most polluted daytime hours, weighing PM2.5 and ozone together.
+- A personal plan in which every number is computed by a deterministic engine, not by the language model.
+- An assistant (Gemini) that explains the plan in English or Hindi, grounded only in those numbers.
+
+## Notes for agents
+
+- No account or login. The household profile stays in the browser's localStorage.
+- The only API is POST /api/assistant, for same-origin use by the app. It is rate-limited and refuses cross-site requests.
+- Guidance is general information, not medical advice.
+
+## Sources
+
+- [Open-Meteo Air Quality API](https://open-meteo.com/en/docs/air-quality-api): live and forecast air-quality data (CAMS)
+- [US EPA AQI basics](https://www.airnow.gov/aqi/aqi-basics/): the AQI scale and health categories used in the app
+- [Berkeley Earth air pollution and cigarette equivalence](https://berkeleyearth.org/air-pollution-and-cigarette-equivalence/): the "cigarettes per day" comparison
