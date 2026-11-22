@@ -74,7 +74,9 @@ interface SentBody {
 /** The request body sent to Gemini in a recorded call, and its prompt text. */
 export const sentBody = (f: ReturnType<typeof gemini>, call = 0): SentBody => {
   const rawBody = f.mock.calls[call]?.[1]?.body;
-  return JSON.parse(typeof rawBody === 'string' ? rawBody : '') as SentBody;
+  return JSON.parse(
+    typeof rawBody === 'string' ? rawBody : '',
+  ) as SentBody;
 };
 export const sentPrompt = (f: ReturnType<typeof gemini>, call = 0): string =>
   sentBody(f, call).contents[0]?.parts[0]?.text ?? '';
