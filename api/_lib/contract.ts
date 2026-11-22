@@ -16,7 +16,7 @@ export interface AssistantRec {
 export interface AssistantContext {
   place: string;
   localTime: string;
-  /** "10:30": when the air reading was taken, quoted with the reading so a later update never reads as a contradiction. */
+  /** "10:30": reading time, quoted with the reading so a later update never contradicts it. */
   readingTime: string;
   usAqi: number;
   pm25: number;
@@ -34,7 +34,7 @@ export interface AssistantContext {
   outdoorHours: string;
   /** One computed fact line per time the user mentioned ("Asked time 07:30 tomorrow: … INSIDE the smog trap …"). */
   askedTimes: string[];
-  /** The server's US EPA yes/no reply for everyone asked about; a yes/no answer opens with it, whatever the model said. */
+  /** Server EPA reply for everyone asked about; yes/no answers open with it, whatever the model said. */
   epaReply?: EpaReply;
   household: string;
   recommendations: AssistantRec[];

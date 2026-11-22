@@ -16,6 +16,7 @@ export function fakeRedis() {
     if (e?.expiresAt !== undefined && e.expiresAt <= clock.now) data.delete(key);
     return data.get(key);
   };
+  // eslint-disable-next-line complexity -- this test double intentionally mirrors three Redis commands.
   const run = ([cmd, key = '', arg = '0', flag]: string[]): { result: number } | { error: string } => {
     const e = live(key) ?? { n: 0 };
     if (cmd === 'INCR' || cmd === 'INCRBY') {
@@ -30,13 +31,15 @@ export function fakeRedis() {
     }
     return { error: `ERR unknown command '${String(cmd)}'` };
   };
-  const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
+  const fetchImpl = vi.fn<typeof fetch>((input, init) => {
     const auth = (init?.headers as Record<string, string> | undefined)?.authorization;
-    if (String(input) !== `${REDIS_URL}/pipeline` || auth !== `Bearer ${REDIS_TOKEN}`) {
-      return new Response('{"error":"Unauthorized"}', { status: 401 });
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url !== `${REDIS_URL}/pipeline` || auth !== `Bearer ${REDIS_TOKEN}`) {
+      return Promise.resolve(new Response('{"error":"Unauthorized"}', { status: 401 }));
     }
-    const commands = JSON.parse(String(init?.body)) as string[][];
-    return new Response(JSON.stringify(commands.map(run)));
+    const rawBody = init?.body;
+    const commands = JSON.parse(typeof rawBody === 'string' ? rawBody : '[]') as string[][];
+    return Promise.resolve(new Response(JSON.stringify(commands.map(run))));
   });
   /** Seconds left on `key`, or undefined when it has no TTL (or does not exist). */
   const ttl = (key: string): number | undefined => {

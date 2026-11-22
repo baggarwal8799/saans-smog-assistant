@@ -17,12 +17,16 @@ export const ask = (question: string, o: Record<string, unknown> = {}) =>
   parseAssistantRequest(body({ mode: 'question', question, ...o }));
 export const summary = (o: Record<string, unknown> = {}) => parseAssistantRequest(body(o));
 
+function requestUrl(input: RequestInfo | URL): string {
+  return typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+}
+
 /** Serves the Open-Meteo calls the server makes itself, and hands every other call (Gemini) to `inner`. */
 export function withAir(inner: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>) {
-  return vi.fn<typeof fetch>(async (input, init) => {
-    const url = String(input);
-    if (url.includes('air-quality-api')) return jsonResponse(openMeteoPayload(6));
-    if (url.includes('api.open-meteo.com')) return jsonResponse(weatherPayload());
+  return vi.fn<typeof fetch>((input, init) => {
+    const url = requestUrl(input);
+    if (url.includes('air-quality-api')) return Promise.resolve(jsonResponse(openMeteoPayload(6)));
+    if (url.includes('api.open-meteo.com')) return Promise.resolve(jsonResponse(weatherPayload()));
     return inner(input, init);
   });
 }
@@ -54,16 +58,26 @@ export const geminiResponse = (text: string, finishReason = 'STOP') =>
 /** A Gemini mock that answers with each answer in turn, then keeps repeating the last one. */
 export const replies = (...answers: Said[]) => {
   let i = 0;
-  return vi.fn<typeof fetch>(async () => geminiResponse(modelJson(answers[Math.min(i++, answers.length - 1)] ?? '')));
+  return vi.fn<typeof fetch>(() =>
+    Promise.resolve(geminiResponse(modelJson(answers[Math.min(i++, answers.length - 1)] ?? ''))),
+  );
 };
 
 export const gemini = (said: Said = 'ok') => replies(said);
 
+interface SentBody {
+  contents: Array<{ parts: Array<{ text: string }> }>;
+}
+
 /** The request body sent to Gemini in a recorded call, and its prompt text. */
 export const sentBody = (f: ReturnType<typeof gemini>, call = 0) =>
-  JSON.parse(String((f.mock.calls[call]?.[1] as RequestInit).body));
+  JSON.parse(
+    typeof (f.mock.calls[call]?.[1] as RequestInit | undefined)?.body === 'string'
+      ? ((f.mock.calls[call]?.[1] as RequestInit).body as string)
+      : '',
+  ) as SentBody;
 export const sentPrompt = (f: ReturnType<typeof gemini>, call = 0): string =>
-  sentBody(f, call).contents[0].parts[0].text as string;
+  sentBody(f, call).contents[0]?.parts[0]?.text ?? '';
 
 /** The answer text a handler response carries. */
 export const textOf = async (res: Response): Promise<string> => ((await res.json()) as { text: string }).text;
