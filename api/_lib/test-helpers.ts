@@ -70,8 +70,17 @@ export const textOf = async (res: Response): Promise<string> => ((await res.json
 
 export const quietLog = { warn: vi.fn() };
 
-export const ctx = () => buildContext(report(), profile(), buildPlan(report(), profile(), 'en'), 'en');
+export const ctx = () =>
+  buildContext({ report: report(), profile: profile(), plan: buildPlan(report(), profile(), 'en'), lang: 'en' });
 
 /** The real prompt the model would see for this request (fixture air data: AQI 260, PM2.5 210, N95 ≈ 80%…). */
 export const promptFor = (req: AssistantRequest) =>
-  buildUserPrompt(req, buildContext(report(), req.profile, buildPlan(report(), req.profile, req.lang), req.lang));
+  buildUserPrompt(
+    req,
+    buildContext({
+      report: report(),
+      profile: req.profile,
+      plan: buildPlan(report(), req.profile, req.lang),
+      lang: req.lang,
+    }),
+  );
