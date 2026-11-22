@@ -7,7 +7,13 @@ import type { Lang } from '../lib/types';
 import type { Weather } from '../test/scenarios';
 import { AirNow } from './AirNow';
 
-function show(aqi: number, weather: Weather, startHour: number, lang: Lang = 'en', edit = (r: ReturnType<typeof airReport>) => r) {
+function show(
+  aqi: number,
+  weather: Weather,
+  startHour: number,
+  lang: Lang = 'en',
+  edit = (r: ReturnType<typeof airReport>) => r,
+) {
   const report = edit(airReport({ aqi, weather, startHour, place: INDIA }));
   render(<AirNow lang={lang} report={report} plan={buildPlan(report, profile(), lang)} />);
 }
@@ -30,7 +36,11 @@ describe('AirNow', () => {
   });
 
   it('falls back to "no window" text and dashes for missing readings, in Hindi too', () => {
-    show(120, 'none', 22, 'hi', (r) => ({ ...r, current: { ...r.current, pm10: Number.NaN, dominant: null }, hourly: r.hourly.slice(0, 3) }));
+    show(120, 'none', 22, 'hi', (r) => ({
+      ...r,
+      current: { ...r.current, pm10: Number.NaN, dominant: null },
+      hourly: r.hourly.slice(0, 3),
+    }));
     expect(screen.getByText(/कोई साफ़ समय नहीं/)).toBeInTheDocument();
     expect(screen.getByText('—')).toBeInTheDocument();
     expect(document.querySelector('.window.bad')).toBeNull();
@@ -58,7 +68,9 @@ describe('AirNow', () => {
 
   it('offers no "if you must go out" window where EPA says to avoid all outdoor activity', () => {
     show(320, 'none', 6);
-    expect(document.querySelector('.window.good')?.textContent).toMatch(/^Least polluted 2 hours \(US EPA: still avoid outdoor activity today\):/);
+    expect(document.querySelector('.window.good')?.textContent).toMatch(
+      /^Least polluted 2 hours \(US EPA: still avoid outdoor activity today\):/,
+    );
     expect(document.body.textContent).not.toMatch(/if you must go out/);
   });
 
@@ -70,7 +82,11 @@ describe('AirNow', () => {
   it('says which average each figure uses: AQI by its pollutant, cigarettes the next 24 h, readings this hour', () => {
     show(210, 'none', 6, 'en', (r) => ({ ...r, current: { ...r.current, dominant: 'pm25' } }));
     expect(screen.getByText('AQI: past 24 h average')).toBeInTheDocument();
-    expect(screen.getByText(/^Breathing the next 24 hours’ air \(forecast average PM2\.5\) is like smoking [\d.]+ cigarettes?\.$/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /^Breathing the next 24 hours’ air \(forecast average PM2\.5\) is like smoking [\d.]+ cigarettes?\.$/,
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByText('This hour’s readings')).toBeInTheDocument();
     expect(document.querySelector('.window.good')?.textContent).toMatch(/\(average: PM2\.5 ≈ \d+/);
     cleanup();

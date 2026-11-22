@@ -1,0 +1,10 @@
+dist
+dist-server
+coverage
+node_modules
+test-results
+playwright-report
+screenshots
+package-lock.json
+api/_lib/fixtures
+*.md

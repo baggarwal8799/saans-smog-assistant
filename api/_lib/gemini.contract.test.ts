@@ -13,7 +13,7 @@ import { report } from '../../src/test/fixtures';
 import { REFUSAL_TEXT, renderAnswer } from './answer';
 import { GeminiError, callGemini } from './gemini';
 import { safetyLines } from './medical';
-import { ask, quietLog } from './test-helpers';
+import { ask, quietLog } from '../../src/test/apiHelpers';
 
 const fixture = (name: string): string => readFileSync(new URL(`./fixtures/${name}.json`, import.meta.url), 'utf8');
 const ON_TOPIC = fixture('gemini-on-topic');
@@ -36,7 +36,8 @@ const onTopicReq = ask('Is it safe to take my kids to the park this evening?');
 const offTopicReq = ask('Write me a short poem about cricket.');
 const epaReply = (() => {
   const plan = buildPlan(report(), onTopicReq.profile, 'en');
-  return buildContext(report(), onTopicReq.profile, plan, 'en', [onTopicReq.question]).epaReply;
+  return buildContext({ report: report(), profile: onTopicReq.profile, plan, lang: 'en', said: [onTopicReq.question] })
+    .epaReply;
 })();
 
 beforeEach(() => {
@@ -71,7 +72,7 @@ describe('recorded Gemini replies', () => {
 });
 
 describe('the documented 429 RESOURCE_EXHAUSTED body', () => {
-  it('fails over to the next model, logging Google\'s message on the server only', async () => {
+  it("fails over to the next model, logging Google's message on the server only", async () => {
     const f = recorded([QUOTA_429, 429], [ON_TOPIC, 200]);
     const answer = await callGemini('PROMPT', env, f, opts);
     expect(answer.reply).toBe('no');
@@ -85,8 +86,9 @@ describe('the documented 429 RESOURCE_EXHAUSTED body', () => {
   });
 
   it('ends as a 429 GeminiError when every model answers with it', async () => {
-    const err = await callGemini('PROMPT', env, recorded([QUOTA_429, 429]), { ...opts, charge: () => true })
-      .catch((e: unknown) => e);
+    const err = await callGemini('PROMPT', env, recorded([QUOTA_429, 429]), { ...opts, charge: () => true }).catch(
+      (e: unknown) => e,
+    );
     expect(err).toBeInstanceOf(GeminiError);
     expect((err as GeminiError).status).toBe(429);
     expect((err as GeminiError).detail.length).toBeLessThanOrEqual(160);

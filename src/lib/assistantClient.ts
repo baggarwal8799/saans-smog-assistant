@@ -1,6 +1,4 @@
-import type { AssistantErrorCode } from '../../api/_lib/gemini.js';
-import type { AssistantMode, AssistantResponse } from '../../api/_lib/contract.js';
-import { LIMITS } from '../../api/_lib/contract.js';
+import { LIMITS, type AssistantMode, type AssistantUiErrorCode, type AssistantResponse } from './contract.js';
 import type { Lang, Place, Profile } from './types.js';
 
 export const HISTORY_TURNS = LIMITS.historyTurns;
@@ -13,8 +11,7 @@ export async function askAssistant(
   const res = await fetchImpl('/api/assistant', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    // Only the place, household and the user's own questions go to the server; it fetches the air data and computes
-    // the plan itself, so nothing the browser sends can change the numbers the AI is given. Answers are never sent back.
+    // Only who, where and the user's own questions: the server derives every number itself, so none can be forged.
     body: JSON.stringify({
       lang: args.lang,
       mode: args.mode,
@@ -31,12 +28,19 @@ export async function askAssistant(
   return { text: data.text };
 }
 
-const KNOWN_CODES: readonly AssistantErrorCode[] = ['not_configured', 'ai_rate_limited', 'ai_unavailable', 'too_many_requests', 'daily_limit'];
-const isKnownCode = (code: unknown): code is AssistantErrorCode => KNOWN_CODES.includes(code as AssistantErrorCode);
+const KNOWN_CODES: readonly AssistantUiErrorCode[] = [
+  'not_configured',
+  'ai_rate_limited',
+  'ai_unavailable',
+  'too_many_requests',
+  'daily_limit',
+];
+/** A request-level code (too_large, forbidden_origin, …) has no message of its own, so it reads as ai_unavailable. */
+const isKnownCode = (code: unknown): code is AssistantUiErrorCode => KNOWN_CODES.includes(code as AssistantUiErrorCode);
 
 /** A failed assistant call, with a code the UI turns into a message in the user's language. */
 export class AssistantError extends Error {
-  constructor(readonly code: AssistantErrorCode) {
+  constructor(readonly code: AssistantUiErrorCode) {
     super(code);
   }
 }

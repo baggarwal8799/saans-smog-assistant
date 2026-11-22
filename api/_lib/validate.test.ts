@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { profile } from '../../src/test/fixtures';
 import { buildUserPrompt } from './prompt';
-import { body, ctx, place } from './test-helpers';
+import { body, ctx, place } from '../../src/test/apiHelpers';
 import { ValidationError, cleanText, isJsonContentType, parseAssistantRequest, stripUnsafe } from './validate';
 
 describe('validation', () => {
@@ -56,6 +56,8 @@ describe('validation', () => {
 
   it('strips control and bidi-override characters', () => {
     expect(stripUnsafe('a\u0000b‮c\td')).toBe('abc\td');
+    // Bidi isolates (U+2066–U+2069) go too; the superscript just past them, and emoji, stay.
+    expect(stripUnsafe('a\u2066b\u2069c\u2070d😷')).toBe('abc\u2070d😷');
     expect(cleanText('  hi   there ', 20, 'f')).toBe('hi there');
     expect(cleanText(undefined, 20, 'f', false)).toBe('');
   });
@@ -76,10 +78,12 @@ describe('validation', () => {
 });
 
 describe('isJsonContentType', () => {
-  it.each(['application/json', 'Application/JSON', 'application/json; charset=utf-8', 'application/json;charset="UTF-8"'])(
-    'accepts %s',
-    (type) => expect(isJsonContentType(type)).toBe(true),
-  );
+  it.each([
+    'application/json',
+    'Application/JSON',
+    'application/json; charset=utf-8',
+    'application/json;charset="UTF-8"',
+  ])('accepts %s', (type) => expect(isJsonContentType(type)).toBe(true));
 
   it.each([
     null,

@@ -1,16 +1,34 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { JS_BUDGET_KB, NARROW_WIDTH_PX } from './limits';
-import { mockApis, openHousehold, pickDelhi } from './mocks';
+import { JS_BUDGET_KB } from './limits';
+import { expandRows, mockApis, openHousehold, pickDelhi } from './mocks';
 
-// Generic guards: each test checks a whole class of regression (fonts, bundle size, names, overflow,
-// contrast) across many page states, rather than one known bug.
+// Generic guards: each test checks a whole class of regression (fonts, bundle size, names) across many page
+// states, rather than one known bug. Layout and contrast guards are in budgets-layout.spec.ts.
 
 const INTERACTIVE_ROLES = new Set([
-  'button', 'link', 'textbox', 'searchbox', 'combobox', 'listbox', 'spinbutton', 'checkbox', 'radio',
-  'switch', 'slider', 'DisclosureTriangle',
+  'button',
+  'link',
+  'textbox',
+  'searchbox',
+  'combobox',
+  'listbox',
+  'spinbutton',
+  'checkbox',
+  'radio',
+  'switch',
+  'slider',
+  'DisclosureTriangle',
 ]);
-const REGION_ROLES = new Set(['region', 'main', 'banner', 'navigation', 'contentinfo', 'complementary', 'form', 'search']);
+const REGION_ROLES = new Set([
+  'region',
+  'main',
+  'banner',
+  'navigation',
+  'contentinfo',
+  'complementary',
+  'form',
+  'search',
+]);
 
 interface AXNode {
   nodeId: string;
@@ -56,9 +74,11 @@ async function unnamedDomControls(page: Page): Promise<string[]> {
     if (!(await el.isVisible())) continue;
     const name = await el.evaluate((node) => {
       const e = node as HTMLElement;
-      const byIds = (e.getAttribute('aria-labelledby') ?? '').split(/\s+/).map((id) => document.getElementById(id)?.textContent ?? '');
-      const labels = 'labels' in e ? Array.from((e as HTMLInputElement).labels ?? [], (l) => l.textContent ?? '') : [];
-      return [e.getAttribute('aria-label') ?? '', ...byIds, ...labels, e.textContent ?? '', e.title].join('').trim();
+      const byIds = (e.getAttribute('aria-labelledby') ?? '')
+        .split(/\s+/)
+        .map((id) => document.getElementById(id)?.textContent ?? '');
+      const labels = 'labels' in e ? Array.from((e as HTMLInputElement).labels ?? [], (l) => l.textContent) : [];
+      return [e.getAttribute('aria-label') ?? '', ...byIds, ...labels, e.textContent, e.title].join('').trim();
     });
     if (!name) out.push(await el.evaluate((node) => node.outerHTML.slice(0, 120)));
   }
@@ -67,19 +87,6 @@ async function unnamedDomControls(page: Page): Promise<string[]> {
 
 async function expectNamesOk(page: Page, state: string) {
   expect([...(await nameProblems(page)), ...(await unnamedDomControls(page))], state).toEqual([]);
-}
-
-async function expandRows(page: Page, count: number) {
-  const rows = page.locator('.row-item summary');
-  for (let i = 0; i < count; i++) await rows.nth(i).click();
-}
-
-async function overflowing(page: Page): Promise<string[]> {
-  return page.evaluate(() =>
-    Array.from(document.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6, p, button, li'))
-      .filter((e) => e.offsetParent !== null && !e.closest('.visually-hidden') && e.scrollWidth > e.clientWidth + 1)
-      .map((e) => `${e.tagName.toLowerCase()}.${e.className} (${e.scrollWidth} > ${e.clientWidth}): ${(e.textContent ?? '').slice(0, 60)}`),
-  );
 }
 
 test.beforeEach(async ({ page }) => {
@@ -129,55 +136,4 @@ test('every control has a name, and no region repeats a button or link name', as
   await expectNamesOk(page, 'Hindi');
   await page.emulateMedia({ colorScheme: 'dark' });
   await expectNamesOk(page, 'Hindi, dark mode');
-});
-
-test(`no text overflows its box at ${NARROW_WIDTH_PX} px, English and Hindi`, async ({ page }) => {
-  await page.setViewportSize({ width: NARROW_WIDTH_PX, height: 720 });
-  await page.goto('/');
-  expect(await overflowing(page), 'empty page').toEqual([]);
-  await pickDelhi(page);
-  await openHousehold(page);
-  await expandRows(page, 3);
-  expect(await overflowing(page), 'English').toEqual([]);
-  await page.getByRole('button', { name: /Language/ }).click();
-  await expect(page.locator('html')).toHaveAttribute('lang', 'hi');
-  await page.evaluate(() => document.fonts.ready);
-  expect(await overflowing(page), 'Hindi').toEqual([]);
-});
-
-test(`no WCAG 2.2 AA violations at ${NARROW_WIDTH_PX} px in Hindi, dark mode, rows expanded`, async ({ page }) => {
-  await page.setViewportSize({ width: NARROW_WIDTH_PX, height: 720 });
-  await page.emulateMedia({ colorScheme: 'dark' });
-  await page.goto('/');
-  await pickDelhi(page);
-  await page.getByRole('button', { name: /Language/ }).click();
-  await expect(page.locator('html')).toHaveAttribute('lang', 'hi');
-  await expandRows(page, 3);
-  await page.evaluate(() => document.fonts.ready);
-  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
-  expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(' | ')}`)).toEqual([]);
-});
-
-/** A row title must keep at least this share of its row: badges beside it wrap under it instead of squeezing it. */
-const MIN_TITLE_SHARE = 0.4;
-const squeezedTitles = (page: Page) =>
-  page.locator('.row-item summary').evaluateAll((rows, share) =>
-    rows.flatMap((row) => {
-      const title = row.querySelector('.row-title');
-      const w = title?.getBoundingClientRect().width ?? 0;
-      return w < row.getBoundingClientRect().width * share ? [`${title?.textContent ?? ''}: ${Math.round(w)} px`] : [];
-    }), MIN_TITLE_SHARE);
-
-test('every "More ways" title keeps a readable width at 1280 px and phone width, English and Hindi', async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto('/');
-  await pickDelhi(page);
-  await expect(page.locator('.row-title').first()).toBeVisible();
-  for (const width of [1280, 360]) {
-    await page.setViewportSize({ width, height: 900 });
-    expect(await squeezedTitles(page), `English ${width}`).toEqual([]);
-  }
-  await page.getByRole('button', { name: /Language/ }).click();
-  await expect(page.locator('html')).toHaveAttribute('lang', 'hi');
-  expect(await squeezedTitles(page), 'Hindi').toEqual([]);
 });

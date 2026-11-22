@@ -51,14 +51,15 @@ export type PluralBase = {
 const pluralRules = new Map<Lang, Intl.PluralRules>();
 
 /**
- * A counted string in the right grammatical number: English "1 person" and "2 people", Hindi "1 व्यक्ति" and "2 लोग".
- * `count` is the number as shown (already rounded), so "1.0" and "1" agree with the words next to them. `{n}` is
- * the count formatted for the language unless the caller passes its own. English and Hindi have only the "one"
- * and "other" forms, so any other category CLDR might return falls back to "other".
+ * A counted string in the right grammatical number ("1 person", "2 लोग"). `count` is the number as shown, so the
+ * words agree with it; English and Hindi have only "one" and "other", so any other CLDR category becomes "other".
  */
 export function tn(lang: Lang, base: PluralBase, count: number, params: Record<string, string | number> = {}): string {
   let rules = pluralRules.get(lang);
-  if (!rules) pluralRules.set(lang, (rules = new Intl.PluralRules(lang === 'hi' ? 'hi-IN' : 'en-IN')));
+  if (!rules) {
+    rules = new Intl.PluralRules(lang === 'hi' ? 'hi-IN' : 'en-IN');
+    pluralRules.set(lang, rules);
+  }
   const form = rules.select(count) === 'one' ? 'one' : 'other';
   return t(lang, `${base}_${form}`, { n: formatNumber(lang, count, 1), ...params });
 }

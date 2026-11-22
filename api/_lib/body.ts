@@ -1,10 +1,14 @@
 /**
- * Reads a request body as text, stopping as soon as it passes `limit` bytes. A chunked upload has no
- * Content-Length to check up front, so the cap is enforced while reading and an oversized body is never held whole.
+ * Reads a request body (a web Request, or the self-hosted server's stream) as text, stopping as soon as it passes
+ * `limit` bytes. A chunked upload has no Content-Length to check up front, so the cap is enforced while reading and
+ * an oversized body is never held whole.
  */
-export async function readCapped(request: Request, limit: number): Promise<string | null> {
-  if (!request.body) return '';
-  const reader = request.body.getReader();
+export async function readCapped(
+  source: { body: ReadableStream<Uint8Array> | null },
+  limit: number,
+): Promise<string | null> {
+  if (!source.body) return '';
+  const reader = source.body.getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;
   for (;;) {

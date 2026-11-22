@@ -26,7 +26,10 @@ export function useLanguage(): { lang: Lang; switching: boolean; toggle: () => v
       saveLang(next);
       setLang(next);
     };
-    if (isLangReady(next)) return apply();
+    if (isLangReady(next)) {
+      apply();
+      return;
+    }
     // One fetch at a time; a failed one (offline) leaves English in place and the next click tries again.
     if (switching) return;
     setSwitching(true);

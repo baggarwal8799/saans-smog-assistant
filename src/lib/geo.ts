@@ -43,7 +43,12 @@ export function coordsLabel(lat: number, lon: number): string {
 }
 
 /** Turns coordinates into "Lucknow, Uttar Pradesh, India"; null when the service has no answer. */
-export async function reverseGeocode(lat: number, lon: number, lang: string, fetchImpl: typeof fetch = fetch): Promise<Place | null> {
+export async function reverseGeocode(
+  lat: number,
+  lon: number,
+  lang: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<Place | null> {
   const params = new URLSearchParams({ latitude: lat.toFixed(2), longitude: lon.toFixed(2), localityLanguage: lang });
   const res = await fetchImpl(`${REVERSE_API}?${params.toString()}`, { signal: AbortSignal.timeout(6000) });
   if (!res.ok) return null;
@@ -59,7 +64,13 @@ export async function reverseGeocode(lat: number, lon: number, lang: string, fet
   return place;
 }
 
-export function currentPosition(label: string, geo: Geolocation | undefined = globalThis.navigator?.geolocation): Promise<Place> {
+/** The browser's geolocation, if any: Node has no `navigator`, and jsdom's has no `geolocation`. */
+function browserGeolocation(): Geolocation | undefined {
+  return typeof navigator === 'undefined' ? undefined : navigator.geolocation;
+}
+
+export function currentPosition(label: string, geolocation?: Geolocation): Promise<Place> {
+  const geo = geolocation ?? browserGeolocation();
   return new Promise((resolve, reject) => {
     if (!geo) {
       reject(new Error('Geolocation is not supported'));

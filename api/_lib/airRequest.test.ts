@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AIR_API, WEATHER_API, airRequest, clearAirCache, fetchAirReport } from '../../src/lib/aqi';
 import { jsonResponse, openMeteoPayload, weatherPayload } from '../../src/test/fixtures';
 import { handleAssistant, resetAssistantState } from './assistant';
-import { body, gemini, post, quietLog } from './test-helpers';
+import { body, gemini, post, quietLog } from '../../src/test/apiHelpers';
 import { parseAssistantRequest } from './validate';
 
 /** A GPS fix as the browser has it, with more decimals than the air grid uses. */

@@ -4,7 +4,7 @@ import { clearAirCache } from '../../src/lib/aqi';
 import { handleAssistant, resetAssistantState } from './assistant';
 import { ATTEMPT_TIMEOUT_MS, MIN_REPAIR_MS, REQUEST_BUDGET_MS, attemptTimeout, startDeadline } from './deadline';
 import { GeminiError, callGemini } from './gemini';
-import { body, geminiResponse, modelJson, post, quietLog, textOf, withAir } from './test-helpers';
+import { body, geminiResponse, modelJson, post, quietLog, textOf, withAir } from '../../src/test/apiHelpers';
 
 /** A Gemini that never answers: each call hangs until its attempt timer aborts it. Records when each call began. */
 function hanging(starts: number[]) {
@@ -44,8 +44,10 @@ describe('request time budget', () => {
     vi.useFakeTimers();
     const t0 = Date.now();
     const starts: number[] = [];
-    const settled = callGemini('P', { GEMINI_API_KEY: 'k' }, hanging(starts), { log: quietLog, deadline: startDeadline() })
-      .catch((e: unknown) => ({ e, at: Date.now() }));
+    const settled = callGemini('P', { GEMINI_API_KEY: 'k' }, hanging(starts), {
+      log: quietLog,
+      deadline: startDeadline(),
+    }).catch((e: unknown) => ({ e, at: Date.now() }));
     await vi.advanceTimersByTimeAsync(40_000);
     const { e, at } = (await settled) as { e: Error; at: number };
     expect(starts.map((s) => s - t0)).toEqual([0, 9_000, 18_000]);
@@ -55,8 +57,9 @@ describe('request time budget', () => {
 
   it('starts no attempt once the budget is spent', async () => {
     const f = vi.fn<typeof fetch>();
-    await expect(callGemini('P', { GEMINI_API_KEY: 'k' }, f, { log: quietLog, deadline: startDeadline(500) }))
-      .rejects.toBeInstanceOf(GeminiError);
+    await expect(
+      callGemini('P', { GEMINI_API_KEY: 'k' }, f, { log: quietLog, deadline: startDeadline(500) }),
+    ).rejects.toBeInstanceOf(GeminiError);
     expect(f).not.toHaveBeenCalled();
   });
 

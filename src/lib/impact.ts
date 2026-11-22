@@ -1,7 +1,6 @@
 /**
- * Deterministic impact engine. Every number the app shows comes from here, never from the LLM,
- * so it is reproducible, unit-tested, and cannot be altered by prompt injection.
- * Factors are deliberately rounded, conservative approximations; sources are listed in README.md.
+ * Every number the app shows comes from here, never the LLM, so prompt injection cannot alter it.
+ * Factors are deliberately rounded, conservative approximations; sources are in README.md.
  */
 import type { Commute, Profile } from './types.js';
 
@@ -34,7 +33,14 @@ export const SPEED_KMH: Readonly<Record<Commute, number>> = {
  * so the dose model would be counting a commute nobody makes. Working from home has no trip to bound.
  */
 export const MAX_COMMUTE_KM: Readonly<Record<Commute, number>> = {
-  car: 100, motorbike: 100, auto: 50, bus: 100, metro: 100, bicycle: 30, walk: 10, wfh: 100,
+  car: 100,
+  motorbike: 100,
+  auto: 50,
+  bus: 100,
+  metro: 100,
+  bicycle: 30,
+  walk: 10,
+  wfh: 100,
 };
 
 /** Breathing rate, m³/h (approx. US EPA Exposure Factors Handbook, adults). */
@@ -72,13 +78,13 @@ export const accessWalkHours = (mode: Commute, kmOneWay: number): number =>
   TRANSIT.has(mode) && kmOneWay > 0 ? (2 * ACCESS_WALK_MIN_EACH_WAY) / 60 : 0;
 
 /**
- * The one indoor/outdoor PM2.5 model, used by the dose and by every tip: windows open as usual (indoor air tracks
- * outdoor), windows shut, shut with a right-sized HEPA purifier, and shut with a DIY box-fan filter. The dose
- * baseline is the household's own habit (`habitRatio`), so no tip is credited for something it already does.
+ * The one indoor/outdoor PM2.5 model, shared by the dose and every tip. The baseline is the household's own habit
+ * (`habitRatio`), so no tip is credited for something it already does.
  */
 export const INDOOR_RATIO = { open: 0.9, closed: 0.6, purifier: 0.3, diyFilter: 0.35 } as const;
 /** The indoor ratio a household already lives with: its purifier running if it has one, else windows open as usual. */
-export const habitRatio = (p: Pick<Profile, 'hasPurifier'>): number => (p.hasPurifier ? INDOOR_RATIO.purifier : INDOOR_RATIO.open);
+export const habitRatio = (p: Pick<Profile, 'hasPurifier'>): number =>
+  p.hasPurifier ? INDOOR_RATIO.purifier : INDOOR_RATIO.open;
 /** Indoor PM2.5 relative to outdoor with windows shut in this home: its own purifier when it runs one does better. */
 export const shutRatio = (p: Pick<Profile, 'hasPurifier'>): number => Math.min(habitRatio(p), INDOOR_RATIO.closed);
 /**
@@ -89,13 +95,14 @@ export const indoorCut = (p: Pick<Profile, 'hasPurifier'>, from = habitRatio(p))
 /** Assumption: two people share a bedroom, and one purifier or box-fan filter cleans one closed room. */
 export const PEOPLE_PER_ROOM = 2;
 
-/** Indoor/outdoor ozone ratio: ozone reacts with indoor surfaces, so indoors is typically about half (Weschler 2000). */
+/** Indoor/outdoor ozone ratio: ozone reacts with indoor surfaces, so indoors is about half (Weschler 2000). */
 export const INDOOR_OZONE_RATIO = 0.5;
 /** Vented range hood while cooking: about 30–50% less kitchen PM2.5; the low end is used (LBNL studies). */
 export const RANGE_HOOD_CUT = 0.3;
-/** Damp cleaning instead of dry sweeping: an assumed 10% less indoor PM2.5, kept low because sweeping re-suspends mostly coarser dust. */
+/** Damp cleaning instead of dry sweeping: an assumed 10% less indoor PM2.5.
+ * Kept low because sweeping re-suspends mostly coarser dust. */
 export const WET_CLEAN_CUT = 0.1;
-/** Kitchen PM2.5 with LPG vs solid fuel while cooking: typically under 100 vs over 500 µg/m³, so about 80% less (WHO). */
+/** Kitchen PM2.5 with LPG vs solid fuel: typically under 100 vs over 500 µg/m³, so about 80% less (WHO). */
 export const CLEAN_FUEL_KITCHEN_CUT = 0.8;
 
 /** Real-world filtration of a well-fitted N95/FFP2 (lab rating is ≥95%; fit leaks lower it). */
@@ -165,9 +172,8 @@ export interface DoseOptions {
 }
 
 /**
- * µg of PM2.5 one person inhales in a day: commute + exercise + the rest of the day indoors.
- * dose = concentration (µg/m³) × breathing rate (m³/h) × hours. With no options it is the baseline: the household's
- * own indoor habit (`habitRatio`) and no mask.
+ * µg of PM2.5 one person inhales in a day (concentration × breathing rate × hours, over commute, exercise, indoors).
+ * With no options it is the baseline: the household's own indoor habit and no mask.
  */
 export function dailyDoseUg(profile: Profile, avgPm25: number, opts: DoseOptions = {}): number {
   const mode = opts.commuteMode ?? profile.commuteMode;

@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fakeRedis, redisEnv } from './fake-redis';
+import { fakeRedis, redisEnv } from '../../src/test/fakeRedis';
 import { REQUESTS_PER_MINUTE, limitsFor, resetLimits } from './limits';
 
 const log = { warn: vi.fn() };

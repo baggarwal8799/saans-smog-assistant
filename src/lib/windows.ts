@@ -42,24 +42,44 @@ export function findWindow(
   let chosen: { score: number; window: TimeWindow } | null = null;
   for (let i = 0; i + hours <= day.length; i++) {
     const slice = day.slice(i, i + hours);
-    const first = slice[0];
-    const last = slice[slice.length - 1];
-    if (!first || !last) continue;
-    const startH = hourOf(first.time);
-    // Measured from the start so a window that wraps past midnight can never count as daytime.
-    const endH = startH + hours;
-    const contiguous = slice.every((p, k) => k === 0 || hourOf(p.time) === (startH + k) % 24);
-    if (!contiguous || startH < 6 || endH > 21 || (pick === 'best' && !slice.every(goOutOk))) continue;
-    const score = slice.reduce((s, p) => s + scoreOf(p), 0) / slice.length;
-    const better = chosen === null || (pick === 'best' ? score < chosen.score : score > chosen.score);
-    if (better) chosen = { score, window: toWindow(slice, first.time, endTime(last.time)) };
+    const candidate = daytimeWindow(slice, pick, scoreOf);
+    if (candidate && beats(candidate.score, chosen, pick)) chosen = candidate;
   }
   return chosen?.window ?? null;
 }
 
+/** The slice as a window with its mean score; null for an empty slice or one that is not daytime. */
+function daytimeWindow(
+  slice: readonly HourPoint[],
+  pick: 'best' | 'worst',
+  scoreOf: (p: HourPoint) => number,
+): { score: number; window: TimeWindow } | null {
+  const first = slice[0];
+  const last = slice.at(-1);
+  if (!first || !last || !isDaytimeSlice(slice, first, pick)) return null;
+  const score = slice.reduce((s, p) => s + scoreOf(p), 0) / slice.length;
+  return { score, window: toWindow(slice, first.time, endTime(last.time)) };
+}
+
+/** True when `score` is a better pick than the window chosen so far (lower for "best", higher for "worst"). */
+function beats(score: number, chosen: { score: number } | null, pick: 'best' | 'worst'): boolean {
+  if (chosen === null) return true;
+  return pick === 'best' ? score < chosen.score : score > chosen.score;
+}
+
+/** Consecutive hours inside 06:00–21:00; for a "best" window, every hour also clears the ozone go-out limit. */
+function isDaytimeSlice(slice: readonly HourPoint[], first: HourPoint, pick: 'best' | 'worst'): boolean {
+  const startH = hourOf(first.time);
+  // Measured from the start so a window that wraps past midnight can never count as daytime.
+  const endH = startH + slice.length;
+  const contiguous = slice.every((p, k) => k === 0 || hourOf(p.time) === (startH + k) % 24);
+  return contiguous && startH >= 6 && endH <= 21 && (pick === 'worst' || slice.every(goOutOk));
+}
+
 function toWindow(slice: readonly HourPoint[], start: string, end: string): TimeWindow {
   const window: TimeWindow = { start, end, avgPm25: slice.reduce((s, p) => s + p.pm25, 0) / slice.length };
-  if (slice.every((p) => p.o3 !== undefined)) window.avgO3 = slice.reduce((s, p) => s + (p.o3 ?? 0), 0) / slice.length;
+  const o3 = slice.map((p) => p.o3);
+  if (o3.every((v): v is number => v !== undefined)) window.avgO3 = o3.reduce((s, v) => s + v, 0) / slice.length;
   return window;
 }
 
@@ -97,7 +117,7 @@ export function spanText(w: Span, now: string): string {
   return `${formatHour(w.start)} ${startDay} to ${formatHour(w.end)} ${startDay === 'today' ? 'tomorrow' : 'the day after'}`;
 }
 
-/** Where each part of the day starts, latest first: the one name for a window's hours, so an evening is never "daytime". */
+/** Where each part of the day starts, latest first, so an evening window is never called "daytime". */
 const NIGHT = { en: 'night', hi: 'रात' } as const;
 const PARTS: readonly (readonly [number, Readonly<Record<Lang, string>>])[] = [
   [21, NIGHT],

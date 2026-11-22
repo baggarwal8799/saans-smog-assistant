@@ -33,13 +33,14 @@ export const concernLevel = (aqi: number, pm25: number): Concern => BY_BAND[plan
 /** From "Unhealthy for sensitive groups" up, the app tells people to protect themselves: N95s, staying in. */
 export const cautious = (c: Concern): boolean => atLeast(c, 'high');
 
-/** Walking and cycling mean heavy breathing, so they are suggested only where the EPA guide puts no limit on that person. */
+/** Walking and cycling mean heavy breathing: suggested only where the EPA guide puts no limit on that person. */
 export const activeTravelOk = (band: AqiLevel, sensitive: boolean): boolean => epaActivity(band, sensitive) === 'fine';
 
 /** A priority that rises with concern: 1 from `from` up, 2 one level below it, 3 below that. */
 export function scaled(c: Concern, from: Concern): Recommendation['priority'] {
   const gap = rank(from) - rank(c);
-  return gap <= 0 ? 1 : gap === 1 ? 2 : 3;
+  if (gap <= 0) return 1;
+  return gap === 1 ? 2 : 3;
 }
 
 /** A time may be called good or best for going out only when its own PM2.5 is at most "Moderate" (≤ 35.4 µg/m³). */
@@ -51,5 +52,6 @@ export const fineToGoOut = (pm25: number): boolean => !cautious(BY_BAND[pm25Leve
  */
 export function bestLabels(w: TimeWindow | null, avoidAllOutdoors = false): { window: MessageKey; key: MessageKey } {
   if (avoidAllOutdoors) return { window: 'bestWindowStayIn', key: 'keyBestNeutral' };
-  return w && fineToGoOut(w.avgPm25) ? { window: 'bestWindow', key: 'keyBest' } : { window: 'bestWindowNeutral', key: 'keyBestNeutral' };
+  if (w && fineToGoOut(w.avgPm25)) return { window: 'bestWindow', key: 'keyBest' };
+  return { window: 'bestWindowNeutral', key: 'keyBestNeutral' };
 }

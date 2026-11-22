@@ -100,8 +100,29 @@ export interface Impact {
   explanation: string;
 }
 
+/** Every tip the rules can give. Typed, so a misspelt ID in a rule, a ranking check or a test fails to compile. */
+export type RecId =
+  | 'ozone-effort'
+  | 'smog-trap'
+  | 'n95'
+  | 'exercise-indoors'
+  | 'exercise-window'
+  | 'protect-vulnerable'
+  | 'commute-switch'
+  | 'commute-exposure'
+  | 'diy-purifier'
+  | 'ventilate-smart'
+  | 'wet-clean'
+  | 'clean-cooking'
+  | 'kitchen-exhaust'
+  | 'gas-heater-safety'
+  | 'safe-heating'
+  | 'stop-burning'
+  | 'no-smoke-indoors'
+  | 'community-plan';
+
 export interface Recommendation {
-  id: string;
+  id: RecId;
   category: RecCategory;
   /** 1 = do first. */
   priority: 1 | 2 | 3;

@@ -10,13 +10,18 @@ export const TRAP_WIND_KMH = 8;
 export const TRAP_MIXING_M = 200;
 const TRAP_MIN_HOURS = 3;
 
+type TrappedHour = HourPoint & { windKmh: number; mixingM: number };
+const isTrapped = (p: HourPoint): p is TrappedHour =>
+  p.windKmh !== undefined && p.mixingM !== undefined && p.windKmh <= TRAP_WIND_KMH && p.mixingM <= TRAP_MIXING_M;
+
 function num(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : Number.NaN;
 }
 
 /** Adds wind and mixing height to the hourly air points (matched by local time). Missing data is fine. */
 export function mergeWeather(points: HourPoint[], raw: unknown): HourPoint[] {
-  const h = (raw as { hourly?: { time?: unknown; wind_speed_10m?: unknown; boundary_layer_height?: unknown } } | null)?.hourly;
+  type RawHourly = { time?: unknown; wind_speed_10m?: unknown; boundary_layer_height?: unknown };
+  const h = (raw as { hourly?: RawHourly } | null)?.hourly;
   if (!h || !Array.isArray(h.time)) return points;
   const wind = Array.isArray(h.wind_speed_10m) ? (h.wind_speed_10m as unknown[]) : [];
   const mixing = Array.isArray(h.boundary_layer_height) ? (h.boundary_layer_height as unknown[]) : [];
@@ -35,21 +40,20 @@ export function mergeWeather(points: HourPoint[], raw: unknown): HourPoint[] {
 /** The first span in the next 24 h of at least 3 hours when still, shallow air traps smoke near the ground. */
 export function findSmogTrap(points: readonly HourPoint[]): SmogTrap | null {
   const day = points.slice(0, 24);
-  let run: HourPoint[] = [];
-  const close = (r: HourPoint[]): SmogTrap | null => {
+  let run: TrappedHour[] = [];
+  const close = (r: TrappedHour[]): SmogTrap | null => {
     const first = r[0];
     const last = r[r.length - 1];
     if (r.length < TRAP_MIN_HOURS || !first || !last) return null;
     return {
       start: first.time,
       end: endTime(last.time),
-      minMixingM: Math.min(...r.map((p) => p.mixingM ?? Infinity)),
-      avgWindKmh: r.reduce((s, p) => s + (p.windKmh ?? 0), 0) / r.length,
+      minMixingM: Math.min(...r.map((p) => p.mixingM)),
+      avgWindKmh: r.reduce((s, p) => s + p.windKmh, 0) / r.length,
     };
   };
   for (const p of day) {
-    const trapped = p.windKmh !== undefined && p.mixingM !== undefined && p.windKmh <= TRAP_WIND_KMH && p.mixingM <= TRAP_MIXING_M;
-    if (trapped) run.push(p);
+    if (isTrapped(p)) run.push(p);
     else {
       const found = close(run);
       if (found) return found;

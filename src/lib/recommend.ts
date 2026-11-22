@@ -1,57 +1,45 @@
-/**
- * Rule engine: live air data + household profile → prioritised, explained recommendations.
- * Pure and deterministic, so the plan is testable and the LLM only explains it. The rules live in ./plan/.
- */
-import { cautious, concernLevel, planBand } from './concern.js';
-import { INDOOR_RATIO, cigarettesEquivalent, habitRatio, dailyDoseUg, pctCut, round, type DoseOptions } from './impact.js';
+/** Rule engine: air data + household → ranked, explained tips. Pure, so it is testable and the LLM only explains it. */
+import { concernLevel, planBand } from './concern.js';
+import { cigarettesEquivalent, round } from './impact.js';
 import { ozoneRec, ozoneWorthWarning, smogTrapRec } from './plan/alerts.js';
-import { commuteExposureRec, commuteRec, safestTransit, suggestCommute } from './plan/commute.js';
+import { commuteExposureRec, commuteRec, suggestCommute } from './plan/commute.js';
 import { communityRec } from './plan/community.js';
+import { planDose } from './plan/dose.js';
 import { cleaningRec, purifierRec, ventilateRec } from './plan/indoor.js';
+import { demoteBeyondUrgent, protectsOnly, rankDrafts } from './plan/ranking.js';
 import { exerciseRec, maskRec } from './plan/routine.js';
-import { CO_CAVEAT, L, MIN_EXPOSURE_CUT_PCT, householdActivity, isIndia, localize, mosquitoZone, type RecDraft, type RuleInput } from './plan/shared.js';
+import { CO_CAVEAT } from './plan/shared.js';
+import { MIN_EXPOSURE_CUT_PCT, localize, type RecDraft, type RuleInput } from './plan/rule.js';
+import { householdActivity } from './plan/household.js';
+import { isIndia, mosquitoZone } from './plan/place.js';
+import { joinText } from './plan/text.js';
 import { coilRec, cookingRec, heatingRec, wasteRec } from './plan/swaps.js';
 import { vulnerableRec } from './plan/vulnerable.js';
 import { findSmogTrap } from './weather.js';
 import { averagePm25, findWindow } from './windows.js';
-import type { AirReport, Commute, Concern, DoseEstimate, HourPoint, Lang, Plan, Profile, SmogTrap, TimeWindow } from './types.js';
+import type { AirReport, Concern, HourPoint, Lang, Plan, Profile, RecId, SmogTrap, TimeWindow } from './types.js';
 
-/** At most this many non-safety items are "Do these first": a list where everything is urgent tells people nothing. */
-export const MAX_URGENT = 3;
+export { homeRatio } from './plan/dose.js';
+export { MAX_URGENT } from './plan/ranking.js';
 
 /** Tips that exist because fuel burns indoors for heat: "shut the windows" advice must then keep some air coming. */
-const FUEL_HEATING: ReadonlySet<string> = new Set(['safe-heating', 'gas-heater-safety']);
-/**
- * A smoke source the household itself reported (fuel, heating, burning). A tip about a habit the form never asks
- * about, or a community figure, cannot make the headline say "your biggest wins are indoor smoke sources".
- */
-const reportedSource = (d: RecDraft): boolean => (d.category === 'swap' || d.removesSource === true) && !d.unreported && !d.community;
-/** Life-safety items (carbon monoxide, heavy indoor smoke) always outrank comfort and emissions advice. */
-const rank = (d: RecDraft): number => d.priority * 2 - (d.safety ? 1 : 0);
-/** A tip that only protects the people breathing (a mask, staying in, timing): no CO₂, no source removed. */
-const protectsOnly = (d: { co2KgPerMonth?: number | undefined; removesSource?: boolean | undefined; safety?: boolean | undefined }): boolean => !(d.co2KgPerMonth ?? 0) && !d.removesSource && !d.safety;
-/**
- * Order within a priority. US EPA's core actions change who goes out or how hard (`epaActivity`) and come first;
- * EPA treats masks as a supplement. From "sensitive groups" up, other protection (smog-trap timing, the N95) comes
- * next and emissions advice last. There are at most three activity actions, so the MAX_URGENT cut can never drop
- * "move the workout indoors" or "keep them indoors": it drops a CO₂ switch, then a mask, first.
- */
-const kindRank = (d: RecDraft, concern: Concern): number => (d.epaActivity ? 0 : cautious(concern) && !protectsOnly(d) ? 2 : 1);
+const FUEL_HEATING: ReadonlySet<RecId> = new Set<RecId>(['safe-heating', 'gas-heater-safety']);
+/** Only a smoke source the household reported may back the headline "your biggest wins are indoor smoke sources". */
+const reportedSource = (d: RecDraft): boolean =>
+  (d.category === 'swap' || d.removesSource === true) && !d.unreported && !d.community;
 
 type Span = Pick<TimeWindow, 'start' | 'end'>;
 const inSpan = (time: string, span: Span | null): boolean => span !== null && time >= span.start && time < span.end;
 
-/**
- * Hours that are safe to suggest for going out or airing the house: never inside a smog trap, the PM2.5 peak or
- * an ozone peak being warned about, so the plan cannot say "go out at 16:00" and "stay in from 16:00" together.
- */
+/** Hours outside every warned span, so the plan never says "go out at 16:00" and "stay in from 16:00" together. */
 export function hoursOutside(points: readonly HourPoint[], spans: readonly (Span | null)[]): HourPoint[] {
   // Cut to the 24 h horizon first: removing hours must not pull in hours beyond it, which were never checked.
   return points.slice(0, 24).filter((p) => !spans.some((s) => inSpan(p.time, s)));
 }
 
 /** A trap is only worth a warning when there is smoke to trap, i.e. on any day that is not clean. */
-const trapWorthWarning = (trap: SmogTrap | null, concern: Concern): SmogTrap | null => (concern === 'low' ? null : trap);
+const trapWorthWarning = (trap: SmogTrap | null, concern: Concern): SmogTrap | null =>
+  concern === 'low' ? null : trap;
 
 /** Every tip must change something real. A 0% (or a 100%) "cut" is a claim, not an action, so it is dropped. */
 export function hasRealImpact(d: Pick<RecDraft, 'co2KgPerMonth' | 'exposureCutPct' | 'removesSource'>): boolean {
@@ -60,8 +48,7 @@ export function hasRealImpact(d: Pick<RecDraft, 'co2KgPerMonth' | 'exposureCutPc
 }
 
 /**
- * A big percentage of a tiny amount is not worth asking for. A tip that only cuts exposure must cut at least
- * MIN_EXPOSURE_CUT_PCT, and on a clean-air day one whose only job is keeping outdoor smog out has nothing to do.
+ * A big percentage of a tiny amount is not worth asking for, and smog defence has nothing to do on a clean day.
  * Source removal and safety tips matter whatever the air.
  */
 export function isMaterial(d: RecDraft, concern: Concern): boolean {
@@ -72,34 +59,7 @@ export function isMaterial(d: RecDraft, concern: Concern): boolean {
 
 function withCoCaveat(d: RecDraft, fuelIndoors: boolean): RecDraft {
   if (!fuelIndoors || !d.shutsWindows) return d;
-  return { ...d, detail: L(d.detail.en + CO_CAVEAT.en, d.detail.hi + CO_CAVEAT.hi) };
-}
-
-/** The indoor ratio the plan's own tips reach: a DIY filter, else shut windows, else the open-window baseline. */
-export function homeRatio(ids: ReadonlySet<string>): number {
-  if (ids.has('diy-purifier')) return INDOOR_RATIO.diyFilter;
-  return ids.has('smog-trap') || ids.has('ventilate-smart') ? INDOOR_RATIO.closed : INDOOR_RATIO.open;
-}
-
-/**
- * The dose "with the plan" applies exactly the tips the plan contains, so the bars can never credit advice that
- * was not given. A switch made for CO₂ (walking instead of driving) can mean breathing more on the way; it is
- * counted only when it also lowers the dose, so the plan never shows itself raising what you breathe.
- */
-function planDose(profile: Profile, avg: number, best: TimeWindow | null, ids: ReadonlySet<string>, alt: Commute | null): DoseEstimate {
-  // The baseline is the household's own habit (its purifier, if it has one), so no tip is credited for what it
-  // already does, and the plan never sends the indoor air above that habit.
-  const baselineUg = dailyDoseUg(profile, avg);
-  const opts: DoseOptions = {
-    maskOutdoors: ids.has('n95'),
-    exerciseIndoors: ids.has('exercise-indoors'),
-    indoorRatio: Math.min(habitRatio(profile), homeRatio(ids)),
-    ...(best && ids.has('exercise-window') ? { exercisePm25: best.avgPm25 } : {}),
-  };
-  let withPlanUg = dailyDoseUg(profile, avg, opts);
-  const mode = ids.has('commute-exposure') ? safestTransit(profile.commuteKm) : ids.has('commute-switch') ? alt : null;
-  if (mode) withPlanUg = Math.min(withPlanUg, dailyDoseUg(profile, avg, { ...opts, commuteMode: mode }));
-  return { baselineUg: round(baselineUg), withPlanUg: round(withPlanUg), cutPct: pctCut(baselineUg, withPlanUg), people: profile.householdSize };
+  return { ...d, detail: joinText(d.detail, CO_CAVEAT) };
 }
 
 /** Everything a rule may look at, worked out once from the air report and the household. */
@@ -160,19 +120,16 @@ export function buildPlan(report: AirReport, profile: Profile, lang: Lang): Plan
   const drafts = draftsFor(input);
   const fuelIndoors = drafts.some((d) => FUEL_HEATING.has(d.id));
 
-  // Stable sort keeps the authored order within a priority. Safety items have their own group and take no slot;
-  // on a clean-air day nothing else is urgent.
-  const slots = concern === 'low' ? 0 : MAX_URGENT;
-  let urgent = 0;
-  const recommendations = [...drafts]
-    .sort((a, b) => rank(a) - rank(b) || kindRank(a, concern) - kindRank(b, concern))
-    .map((d) => localize(withCoCaveat(d, fuelIndoors), lang))
-    .map((r) => (!r.safety && r.priority === 1 && ++urgent > slots ? { ...r, priority: 2 as const } : r));
+  // Safety items have their own group and take no "do first" slot (ranking.ts).
+  const ranked = rankDrafts(drafts, concern).map((d) => localize(withCoCaveat(d, fuelIndoors), lang));
+  const recommendations = demoteBeyondUrgent(ranked, concern);
 
   const ids = new Set(recommendations.map((r) => r.id));
   const alt = suggestCommute(profile.commuteMode, profile.commuteKm, band, profile.hasRespiratory);
   // Community figures belong to the society, not this household.
-  const co2 = recommendations.filter((r) => !r.impact.community).reduce((sum, r) => sum + (r.impact.co2KgPerMonth ?? 0), 0);
+  const co2 = recommendations
+    .filter((r) => !r.impact.community)
+    .reduce((sum, r) => sum + (r.impact.co2KgPerMonth ?? 0), 0);
 
   return {
     concern,
@@ -181,7 +138,7 @@ export function buildPlan(report: AirReport, profile: Profile, lang: Lang): Plan
     recommendations,
     bestWindow: input.best,
     worstWindow: worst,
-    dose: planDose(profile, avg, input.best, ids, alt),
+    dose: planDose({ profile, avg, best: input.best, ids, alt }),
     co2KgPerMonthTotal: round(co2, 1),
     hasSourceFixes: drafts.some(reportedSource),
     cigarettesPerDay: round(cigarettesEquivalent(avg), 1),

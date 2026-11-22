@@ -3,7 +3,8 @@
  * wind below a floor, so a value at or under it is not a measurement: it is written as "under" the floor instead of
  * as a precise figure.
  */
-import { L, n, type Text } from './shared.js';
+import { bilingual, type Text } from './text.js';
+import { num } from './format.js';
 
 /** Mixing heights at or below this are the model's floor, not a reading, metres. */
 export const MIXING_FLOOR_M = 50;
@@ -11,13 +12,13 @@ export const MIXING_FLOOR_M = 50;
 export const WIND_FLOOR_KMH = 2;
 
 const KINDS = {
-  mixing: { floor: MIXING_FLOOR_M, unit: L('m', 'मीटर') },
-  wind: { floor: WIND_FLOOR_KMH, unit: L('km/h', 'किमी/घंटा') },
+  mixing: { floor: MIXING_FLOOR_M, unit: bilingual('m', 'मीटर') },
+  wind: { floor: WIND_FLOOR_KMH, unit: bilingual('km/h', 'किमी/घंटा') },
 } as const;
 
 /** "≈ 120 m" / "≈ 120 मीटर", or "under 50 m" / "50 मीटर से कम" at or below the floor. */
 export function weatherFigure(kind: keyof typeof KINDS, value: number): Text {
   const { floor, unit } = KINDS[kind];
-  if (value <= floor) return L(`under ${floor} ${unit.en}`, `${floor} ${unit.hi} से कम`);
-  return L(`≈ ${n(value)} ${unit.en}`, `≈ ${n(value)} ${unit.hi}`);
+  if (value <= floor) return bilingual(`under ${floor} ${unit.en}`, `${floor} ${unit.hi} से कम`);
+  return bilingual(`≈ ${num(value)} ${unit.en}`, `≈ ${num(value)} ${unit.hi}`);
 }

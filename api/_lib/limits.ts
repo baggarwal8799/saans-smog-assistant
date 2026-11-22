@@ -7,6 +7,7 @@
 import { DailyQuota } from './quota.js';
 import { RateLimiter } from './rateLimit.js';
 import { MemoryStore, errorText, sharedStore, withFallback, type StoreEnv } from './store.js';
+import type { Logger } from './log.js';
 
 /** Per browser/IP: generous for a person clicking quickly, tight enough to protect the free Gemini quota. */
 export const REQUESTS_PER_MINUTE = 15;
@@ -38,7 +39,7 @@ export interface Limits {
 export function limitsFor(
   env: StoreEnv,
   fetchImpl: typeof fetch,
-  log: Pick<Console, 'warn'>,
+  log: Logger,
   now: () => Date = () => new Date(),
 ): Limits {
   const shared = sharedStore(env, fetchImpl);

@@ -85,10 +85,10 @@ Every setting lives in `.env`; `.env.example` documents each one.
 | `npm run dev` | Vite dev server with the real `/api/assistant` handler |
 | `npm run build` | Type check, then production build to `dist/` |
 | `npm run preview` | Serve `dist/` on http://127.0.0.1:4173 **with the production security headers from `vercel.json`** and the API |
-| `npm run lint` | ESLint (typescript-eslint strict + jsx-a11y strict + react-hooks) |
+| `npm run lint` · `npm run format` | ESLint (TS strict, jsx-a11y strict, react-hooks, SonarJS) · Prettier |
 | `npm run typecheck` | `tsc --noEmit` (strict, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`) |
 | `npm test` | Vitest unit and integration tests (jsdom, with axe checks) |
-| `npm run test:coverage` | Same, with coverage thresholds (85% lines, functions and statements; 75% branches) |
+| `npm run test:coverage` | Same, with coverage thresholds (99% lines, statements and branches; 98% functions) |
 | `npm run test:e2e` | Playwright on desktop and mobile against the **production build** with the real CSP, including WCAG 2.2 AA scans |
 | `npm run check:size` | Fails if the source is over 5 MB (the submission cap is 10 MB) |
 | `npm run check:live` | Smoke test against **real** services (needs `npm run preview` running). `EXPECT_AI=true` makes it fail unless Gemini actually answers |
@@ -101,8 +101,6 @@ Every setting lives in `.env`; `.env.example` documents each one.
 | `docker compose up --build -d` | Build the image and run it (reads `.env`) |
 | `npm run ci` | lint + typecheck + coverage + build + size (what CI runs, minus e2e) |
 | `npm run verify:all` | `ci` + e2e. **Run this before every submission or PR.** |
-
-Lighthouse (Chrome DevTools on `npm run preview`) last scored 100 in all four categories; LCP about 0.26 s, CLS 0.
 
 ---
 
@@ -144,11 +142,11 @@ Browser (React 19, Vite)                                   Vercel Function (Node
 | `api/_lib/validate.ts` | Strict request validation, removal of control characters, bidi overrides and angle brackets |
 | `api/_lib/prompt.ts` | System instruction and fenced user prompt |
 | `limits.ts` · `store.ts` | 15 per minute per client and daily caps: shared across instances when Upstash is configured, per instance otherwise |
-| `api/_lib/contract.ts` | Request and response types and limits shared by client and server |
-| `server/index.ts` · `static.ts` | Self-hosted production server (Docker / `npm start`) · static files with Brotli/gzip, ETag/304 and traversal protection; SPA fallback, `vercel.json` headers, `/api/assistant`, `/healthz`, 16 KB body cap, prints AI status and key steps at startup |
+| `src/lib/contract.ts` | Types, error codes and limits shared by client and server |
+| `server/index.ts` · `static.ts` | Self-hosted production server (Docker / `npm start`) · static files with Brotli/gzip, ETag/304 and traversal protection; SPA fallback, `vercel.json` headers, `/api/assistant`, `/healthz`, 15,000-byte body cap, prints AI status and key steps at startup |
 | `Dockerfile`, `compose.yaml`, `.dockerignore` | Two-stage image (build → Alpine runtime without `node_modules`); compose reads `.env` |
 | `vite.config.ts` | Dev/preview API middleware, `vercel.json` headers on preview, Vitest config |
-| `vercel.json` | CSP and security headers, asset caching, function timeout |
+| `vercel.json` | CSP and security headers (asserted in `src/securityHeaders.test.ts`; see `SECURITY.md`), asset caching, function timeout |
 | `e2e/app.spec.ts` | Playwright tests (mocked external APIs, real CSP, axe) |
 | `e2e/budgets.spec.ts` · `chunks.spec.ts` · `src/docs.test.ts` | Guards: font, JS (first load 100 kB gzip) and a11y budgets; lazy chunks · doc numbers, names, paths |
 | `scripts/` | `setup`, `check-size`, `live-check`, `screenshots` |
@@ -162,7 +160,7 @@ Browser (React 19, Vite)                                   Vercel Function (Node
 3. **Community figures are separate.** Anything with `community: true` is excluded from the household CO₂ total. Switching commute mode and carpooling are alternatives, so only the larger counts.
 4. **Safety first.** `safety: true` tips (fuel heating, solid-fuel cooking) are their own group above the `MAX_URGENT = 3` "do first" items and take none of those slots. On a clean-air day nothing else is "do first".
 5. **Time windows start at the next full hour** and say "tomorrow" or "कल" when they fall on a later day (`isLaterDay`). Windows weigh PM2.5 *and* ozone (`airScore`). Ozone advice uses the ozone peak, not the overall worst window.
-6. **Bilingual everything.** Every visible string is in `i18n.ts` (both `en` and `hi`) or written as `L(en, hi)` in `src/lib/plan/`. Show translated messages instead of raw browser or API error text.
+6. **Bilingual everything.** Every visible string is in `i18n.ts` (both `en` and `hi`) or written as `bilingual(en, hi)` in `src/lib/plan/copy/`. Show translated messages instead of raw browser or API error text.
 7. **Model output is a typed object, rendered as text.** Never use `dangerouslySetInnerHTML` or render Markdown from the model.
 8. **The server never trusts plan data from the browser.** It receives only `place` and `profile` and recomputes everything. **Server validation is an allow-list.** New request fields need validation in `validate.ts`, limits in `contract.ts` and tests. Keep the angle-bracket stripping: it protects the `<CONTEXT>` and `<QUESTION>` fences.
 9. **External hosts need the CSP.** Any new `fetch` host must be added to `connect-src` in `vercel.json`. After editing `vercel.json`, **restart `npm run preview`**, because headers are read at startup.
@@ -177,7 +175,7 @@ Browser (React 19, Vite)                                   Vercel Function (Node
 ## 6. Common tasks
 
 **Add a recommendation**
-1. Write a `xxxRec(input: RuleInput): RecDraft | null` in the matching `src/lib/plan/*.ts` with `L(en, hi)` title, detail and explanation, and an impact (`co2KgPerMonth`, or `exposureCutPct` + `scope`, or `removesSource`).
+1. Write a `xxxRec(input: RuleInput): RecDraft | null` in the matching `src/lib/plan/*.ts` with `bilingual(en, hi)` text, and an impact (`co2KgPerMonth`, or `exposureCutPct` + `scope`, or `removesSource`).
 2. Add it to `draftsFor` in `recommend.ts` (array order breaks ties; set `epaActivity` if it changes who goes out or how hard).
 3. Put any new factor in `impact.ts` with a source comment and add it to the README sources table.
 4. Add tests in `src/lib/recommend.test.ts`: when it appears, when it doesn't, and its impact.
@@ -197,7 +195,7 @@ Browser (React 19, Vite)                                   Vercel Function (Node
 
 ## 7. Testing guide
 
-- **Unit and integration (`npm test`):** pure logic in `src/lib/*.test.ts` and `api/**/*.test.ts` (server tests run in the `node` environment). `gemini.contract.test.ts` replays real Gemini bodies (`api/_lib/fixtures/`). `src/App*.test.tsx` drive the whole UI with every network call mocked (`src/test/network.ts`) and run axe-core; API tests share `api/_lib/test-helpers.ts`.
+- **Unit and integration (`npm test`):** pure logic in `src/lib/*.test.ts` and `api/**/*.test.ts` (server tests run in the `node` environment). `gemini.contract.test.ts` replays real Gemini bodies (`api/_lib/fixtures/`). `src/App*.test.tsx` drive the whole UI with every network call mocked (`src/test/network.ts`) and run axe-core; API tests share `src/test/apiHelpers.ts` and `src/test/fakeRedis.ts`.
 - **End to end (`npm run test:e2e`):** builds the app and serves it with `vite preview`, so the production CSP is enforced. External APIs are mocked with `page.route`. Any CSP violation in the console fails the test. It covers the full flow, profile changes, geolocation naming, change place, keyboard use, no horizontal scroll at 360 px, API rejection paths, and axe scans in light, dark, English and Hindi.
 - **Real services:** `npm run preview`, then `npm run check:live` (geolocation → Lucknow, plan, assistant) and `npm run shots` (visual review). Look at the screenshots: automated checks miss visual bugs.
 - **When something fails in the browser but not in tests,** first check for a stale `npm run preview` server (old headers) and a cached build (hard refresh).
@@ -240,7 +238,6 @@ Highest impact first. The file to start from is given for each.
 2. **Place-name language.** Names come in the language used when searching or locating. Switching EN↔HI afterwards does not translate the stored name. Start from `LocationPicker.tsx` and `geo.ts`, e.g. re-resolve when the language changes.
 3. **Search results include foreign namesakes** (e.g. "Lucknow, Victoria, Australia", "Dunn, North Carolina" for "Lucknow"). Consider ranking the user's country first. Start from `geo.ts`.
 4. **Impact factors are rounded approximations** (DEFRA, EPA, Berkeley Earth and others; see the README). Indoor ozone at "about half of outdoor" and DIY-filter ratios are estimates.
-5. More UI edge cases may exist: run `npm run shots` and `npm run check:clickthrough`.
 
 ---
 
@@ -260,7 +257,7 @@ Highest impact first. The file to start from is given for each.
 
 ## 12. Conventions for agents
 
-- Keep this file under **24 KB**: Antigravity truncates rule files above 24,000 bytes. Antigravity and Codex read `AGENTS.md` directly.
+- Keep this file under **24 KB**: Antigravity truncates rule files above 24,000 bytes.
 - Run `npm run verify:all` before saying a change is done, and look at `npm run shots` output for any UI change.
 - Keep changes small and tested: a bug fix comes with a test that fails before it and passes after.
 - Do not commit `.env`, `screenshots/`, `dist/`, `coverage/` or `test-results/` (all gitignored).

@@ -1,4 +1,4 @@
-import type { AssistantContext, AssistantLang, AssistantRequest } from './contract.js';
+import type { AssistantContext, AssistantLang, AssistantRec, AssistantRequest } from '../../src/lib/contract.js';
 import { MAX_LINES, REPLY_WORD } from './answer.js';
 import { askedPeopleFact } from '../../src/lib/askedPeople.js';
 import { t } from '../../src/lib/i18n.js';
@@ -36,50 +36,71 @@ const LANG_NAME = { en: 'English', hi: 'Hindi (Devanagari script)' } as const;
 
 /** Ends a title or impact with a full stop unless it already ends a sentence. */
 const sentence = (text: string, lang: AssistantLang = 'en'): string =>
-  /[.!?।…]$/u.test(text.trim()) ? text.trim() : `${text.trim()}${lang === 'hi' ? '।' : '.'}`;
+  /[.!?।…]$/u.test(text.trim()) ? text.trim() : text.trim() + fullStop(lang);
 
-export function buildUserPrompt(req: AssistantRequest, c: AssistantContext): string {
+function historyBlock(history: readonly string[]): string {
+  const lines = history.map((q) => '- ' + q).join('\n');
+  return `<HISTORY>\nEarlier questions from this user:\n${lines}\n</HISTORY>`;
+}
+
+const fullStop = (lang: AssistantLang): string => (lang === 'hi' ? '।' : '.');
+
+type Group = AssistantRec['group'];
+type Headings = Record<Group, string>;
+
+/** The headings the person sees, so the model ranks the plan exactly as the screen does. */
+const headingsFor = (lang: AssistantLang): Headings => ({
+  safety: t(lang, 'safetyHeading'),
+  first: t(lang, 'doFirstHeading'),
+  more: t(lang, 'moreHeading'),
+});
+
+/** The plan as numbered plain sentences under its on-screen headings; a group with no items gets no heading. */
+function planLines(c: AssistantContext, lang: AssistantLang, heading: Headings): string {
   // Plain sentences only: the model copies whatever format it is shown into the answer.
   // The label is in the reply language: an English "Impact:" in a Hindi CONTEXT was copied into Hindi answers.
-  const impact = req.lang === 'hi' ? 'असर' : 'Impact';
-  // Grouped under the headings the person sees, so the model ranks the plan exactly as the screen does.
-  const heading = {
-    safety: t(req.lang, 'safetyHeading'),
-    first: t(req.lang, 'doFirstHeading'),
-    more: t(req.lang, 'moreHeading'),
-  };
+  const impact = t(lang, 'impact');
   let n = 0;
-  const recs = (['safety', 'first', 'more'] as const)
+  return (['safety', 'first', 'more'] as const)
     .flatMap((g) => {
       const items = c.recommendations.filter((r) => r.group === g);
-      const lines = items.map((r) => `${++n}. ${sentence(r.title, req.lang)} ${impact}: ${sentence(r.impact, req.lang)}`);
+      const lines = items.map((r) => `${++n}. ${sentence(r.title, lang)} ${impact}: ${sentence(r.impact, lang)}`);
       return items.length > 0 ? [`${heading[g]}:`, ...lines] : [];
     })
     .join('\n');
-  // Only the groups and totals that exist are named, so the model never writes a heading with nothing under it.
-  const has = (g: keyof typeof heading): boolean => c.recommendations.some((r) => r.group === g);
-  const totals = [
+}
+
+/** Only the totals that exist, so the model never writes "0 kg". */
+const totalsOf = (c: AssistantContext): string[] =>
+  [
     c.doseCutPct ? `${c.doseCutPct}% less PM2.5 inhaled per day` : '',
     c.co2KgPerMonth ? `${c.co2KgPerMonth} kg CO₂ avoided per month` : '',
   ].filter(Boolean);
+
+/** The summary's order of steps; only the groups that exist are named, so no heading has nothing under it. */
+function summaryTask(c: AssistantContext, heading: Headings, hasTotals: boolean): string {
+  const has = (g: Group): boolean => c.recommendations.some((r) => r.group === g);
   const steps = [
     'The first line says what today’s air means for them',
     has('safety') ? `then the "${heading.safety}" items` : '',
     has('first') ? `then exactly the items under "${heading.first}" as the top actions, each with its impact` : '',
-    totals.length > 0 ? 'then the combined impact' : '',
+    hasTotals ? 'then the combined impact' : '',
   ].filter(Boolean);
   const notTop = has('more') ? ` Never present an item under "${heading.more}" as a top action.` : '';
-  const task =
-    req.mode === 'summary'
-      ? `TASK: Explain today’s plan to this household in a warm, encouraging way. ${steps.join(', ')}.${notTop}`
-      : 'TASK: Answer the QUESTION for this household using the CONTEXT. Set offTopic only if nothing in the question is about air quality or sustainable living; otherwise answer the on-topic part.';
+  return `TASK: Explain today’s plan to this household in a warm, encouraging way. ${steps.join(', ')}.${notTop}`;
+}
 
+const QUESTION_TASK =
+  'TASK: Answer the QUESTION for this household using the CONTEXT. Set offTopic only if nothing in ' +
+  'the question is about air quality or sustainable living; otherwise answer the on-topic part.';
+
+/** The computed facts, each on its own line; an absent fact leaves an empty entry for the caller to drop. */
+function contextLines(req: AssistantRequest, c: AssistantContext, plan: string, totals: readonly string[]): string[] {
   return [
-    `Reply in ${LANG_NAME[req.lang]}.`,
-    task,
     '<CONTEXT>',
     `Local time at the place in USER_PLACE: ${c.localTime}`,
-    `Air now: US AQI ${c.usAqi} at ${c.readingTime} (${c.level}), PM2.5 ${c.pm25} µg/m³ at ${c.readingTime} (reading time; the data updates through the day)`,
+    `Air now: US AQI ${c.usAqi} at ${c.readingTime} (${c.level}), PM2.5 ${c.pm25} µg/m³ at ${c.readingTime} ` +
+      '(reading time; the data updates through the day)',
     c.epaBand ?? '',
     `Breathing today's outdoor air ≈ ${c.cigarettesPerDay} cigarettes/day`,
     `Cleanest 2 h window: ${c.bestWindow || 'none today'}`,
@@ -90,18 +111,34 @@ export function buildUserPrompt(req: AssistantRequest, c: AssistantContext): str
     'Why windows are shut on smoggy hours: shut windows keep outdoor smoke out.',
     `Hourly PM2.5 next 24 h (µg/m³): ${c.hourly}`,
     ...c.askedTimes,
-    ...askedPeopleFact(req.question, req.lang),
+    ...askedPeopleFact(req.question, req.lang, req.history.length > 0),
     'Plan, in the groups the person sees on screen:',
-    recs,
+    plan,
     totals.length > 0 ? `Following the full plan: ${totals.join(', ')}.` : '',
     '</CONTEXT>',
-    // Everything below comes from the request body: cleaned in validate.ts, and fenced so it is never read as CONTEXT.
+  ];
+}
+
+/** Everything here comes from the request body: cleaned in validate.ts, and fenced so it is never read as CONTEXT. */
+function userBlocks(req: AssistantRequest, c: AssistantContext): string[] {
+  const question = req.mode === 'question';
+  return [
     `<USER_PLACE>\n${c.place}\n</USER_PLACE>`,
     `<USER_HOUSEHOLD>\n${c.household}\n</USER_HOUSEHOLD>`,
-    req.mode === 'question' && req.history.length > 0
-      ? `<HISTORY>\nEarlier questions from this user:\n${req.history.map((q) => `- ${q}`).join('\n')}\n</HISTORY>`
-      : '',
-    req.mode === 'question' ? `<QUESTION>\n${req.question}\n</QUESTION>` : '',
+    question && req.history.length > 0 ? historyBlock(req.history) : '',
+    question ? `<QUESTION>\n${req.question}\n</QUESTION>` : '',
+  ];
+}
+
+export function buildUserPrompt(req: AssistantRequest, c: AssistantContext): string {
+  const heading = headingsFor(req.lang);
+  const totals = totalsOf(c);
+  const task = req.mode === 'summary' ? summaryTask(c, heading, totals.length > 0) : QUESTION_TASK;
+  return [
+    `Reply in ${LANG_NAME[req.lang]}.`,
+    task,
+    ...contextLines(req, c, planLines(c, req.lang, heading), totals),
+    ...userBlocks(req, c),
   ]
     .filter(Boolean)
     .join('\n');

@@ -3,7 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as client from '../lib/assistantClient';
 import { DELHI, profile } from '../test/fixtures';
-import { AUTO_SUMMARY_DELAY_MS, Assistant, autoSummaryAllowed } from './Assistant';
+import { AUTO_SUMMARY_DELAY_MS, autoSummaryAllowed } from '../hooks/useAssistant';
+import { Assistant } from './Assistant';
 
 vi.mock('../lib/assistantClient', async (importOriginal) => ({
   ...(await importOriginal<typeof client>()),
@@ -16,7 +17,10 @@ function setVisibility(state: DocumentVisibilityState) {
   Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state });
 }
 function setSaveData(saveData: boolean | undefined) {
-  Object.defineProperty(navigator, 'connection', { configurable: true, value: saveData === undefined ? undefined : { saveData } });
+  Object.defineProperty(navigator, 'connection', {
+    configurable: true,
+    value: saveData === undefined ? undefined : { saveData },
+  });
 }
 
 /** Renders with the automatic summary on, then lets its delay pass. */

@@ -12,13 +12,20 @@ test.beforeEach(async ({ page }) => {
 });
 
 /** Names of the lazy chunks fetched so far (Vite names each after its entry module). */
+/** The order of a bare .sort() (UTF-16 code units), as an explicit comparator. */
+function byCodeUnit(a: string, b: string): number {
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+}
+
 function lazyChunks(page: Page): () => string[] {
   const seen = new Set<string>();
   page.on('request', (r) => {
     const m = /\/assets\/(i18n-hi|Assistant|ProfileEditor)-[\w-]+\.js$/.exec(r.url());
     if (m?.[1]) seen.add(m[1]);
   });
-  return () => [...seen].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  return () => [...seen].sort(byCodeUnit);
 }
 
 test('each lazy chunk loads only with the action that needs it', async ({ page }) => {

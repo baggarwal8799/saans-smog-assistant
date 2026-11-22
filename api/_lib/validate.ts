@@ -1,6 +1,6 @@
 import { sanitizeProfile } from '../../src/lib/profile.js';
 import type { Place } from '../../src/lib/types.js';
-import { LIMITS, type AssistantRequest } from './contract.js';
+import { LIMITS, type AssistantRequest } from '../../src/lib/contract.js';
 
 export class ValidationError extends Error {}
 
@@ -23,7 +23,9 @@ function isUnsafeCodePoint(c: number): boolean {
 
 export function stripUnsafe(value: string): string {
   let out = '';
-  for (const ch of value) if (!isUnsafeCodePoint(ch.codePointAt(0) ?? 0)) out += ch;
+  // A code point from for…of is never empty. charCodeAt gives an astral character's high surrogate (U+D800+),
+  // which is as safe as the character itself, so the result is the same as reading the whole code point.
+  for (const ch of value) if (!isUnsafeCodePoint(ch.charCodeAt(0))) out += ch;
   return out;
 }
 
@@ -60,8 +62,8 @@ function cleanPlace(value: unknown): Place {
     lat: cleanNumber(o.lat, -90, 90, 'lat'),
     lon: cleanNumber(o.lon, -180, 180, 'lon'),
   };
-  const region = cleanText(o.region, 80, 'region', false);
-  const country = cleanText(o.country, 80, 'country', false);
+  const region = cleanText(o.region, LIMITS.placePart, 'region', false);
+  const country = cleanText(o.country, LIMITS.placePart, 'country', false);
   if (region) place.region = region;
   if (country) place.country = country;
   return place;
@@ -84,8 +86,8 @@ function cleanHistory(value: unknown): string[] {
  */
 export function parseAssistantRequest(body: unknown): AssistantRequest {
   const o = asRecord(body, 'body');
-  const lang = o.lang === 'hi' ? 'hi' : o.lang === 'en' ? 'en' : null;
-  if (!lang) throw new ValidationError('lang must be en or hi');
+  const lang = o.lang;
+  if (lang !== 'hi' && lang !== 'en') throw new ValidationError('lang must be en or hi');
   const mode = o.mode === 'summary' || o.mode === 'question' ? o.mode : null;
   if (!mode) throw new ValidationError('mode must be summary or question');
   const question = mode === 'question' ? cleanText(o.question, LIMITS.question, 'question') : '';

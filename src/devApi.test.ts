@@ -5,17 +5,25 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { describe, expect, it, vi } from 'vitest';
 import { DEV_MAX_BODY, apiMiddleware } from '../vite.config';
 
-const handler = vi.hoisted(() => vi.fn(async (req: Request) => new Response(JSON.stringify({ got: (await req.text()).length }), { status: 200 })));
+const handler = vi.hoisted(() =>
+  vi.fn(async (req: Request) => new Response(JSON.stringify({ got: (await req.text()).length }), { status: 200 })),
+);
 vi.mock('../api/_lib/assistant.js', () => ({ handleAssistant: handler }));
 
 /** A fake request that emits `chunks`, and a response that records what was sent. */
 function exchange(chunks: Buffer[]) {
-  const req = Object.assign(new EventEmitter(), { method: 'POST', headers: { 'content-type': 'application/json' }, resume: vi.fn() });
+  const req = Object.assign(new EventEmitter(), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    resume: vi.fn(),
+  });
   const sent: { status?: number; body?: string; headers: Record<string, string> } = { headers: {} };
   const done = new Promise<void>((resolve) => {
     const res = {
       statusCode: 200,
-      setHeader: (k: string, v: string) => void (sent.headers[k] = v),
+      setHeader: (k: string, v: string) => {
+        sent.headers[k] = v;
+      },
       writeHead(status: number, headers: Record<string, string>) {
         sent.status = status;
         Object.assign(sent.headers, headers);

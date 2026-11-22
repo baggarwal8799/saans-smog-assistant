@@ -46,7 +46,14 @@ describe('sanitizeProfile', () => {
   });
 
   it('clamps numbers and rejects unknown enum values', () => {
-    const p = sanitizeProfile({ householdSize: 999, commuteKm: -4, exerciseMinutes: 'abc', commuteMode: 'rocket', cooking: 'png', hasPurifier: 'yes' });
+    const p = sanitizeProfile({
+      householdSize: 999,
+      commuteKm: -4,
+      exerciseMinutes: 'abc',
+      commuteMode: 'rocket',
+      cooking: 'png',
+      hasPurifier: 'yes',
+    });
     expect(p.householdSize).toBe(20);
     expect(p.commuteKm).toBe(0);
     expect(p.exerciseMinutes).toBe(DEFAULT_PROFILE.exerciseMinutes);
@@ -91,6 +98,8 @@ describe('storage', () => {
     expect(loadPlace()).toEqual({ name: 'Patna', lat: 25.6, lon: 85.1, region: 'Bihar', country: 'India' });
     localStorage.setItem(PLACE_KEY, JSON.stringify({ name: 'Bad', lat: 999, lon: 0 }));
     expect(loadPlace()).toBeNull();
+    localStorage.setItem(PLACE_KEY, JSON.stringify({ name: 'Here', lat: 10, lon: 20, region: 5, country: null }));
+    expect(loadPlace()).toEqual({ name: 'Here', lat: 10, lon: 20 });
     localStorage.removeItem(PLACE_KEY);
     expect(loadPlace()).toBeNull();
   });

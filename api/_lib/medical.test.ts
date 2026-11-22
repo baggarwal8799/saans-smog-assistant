@@ -4,7 +4,7 @@ import { profile } from '../../src/test/fixtures';
 import { MEDICAL_LINE, needsMedicalLine, safetyLines } from './medical';
 import { ungroundedNumbers } from './numbers';
 import { nonDevanagariWords } from './script';
-import { ask, summary } from './test-helpers';
+import { ask, summary } from '../../src/test/apiHelpers';
 
 describe('medical line, added by code', () => {
   it('is needed when the household, the question or an earlier question involves a condition or symptoms', () => {

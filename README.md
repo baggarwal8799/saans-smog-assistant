@@ -2,8 +2,6 @@
 
 **Saans** (Hindi for *breath*) is a Gen-AI assistant that helps families and communities get through severe winter smog. It reads **live air quality for your location**, learns a little about **your household and lifestyle**, and builds a plan with four parts:
 
-**Live demo:** [saans-smog-assistant.vercel.app](https://saans-smog-assistant.vercel.app/)
-
 1. **Low-emission daily routines**: the cleanest hours to go out (weighing PM2.5 *and* ozone), a **winter smog-trap alert** (cold, still air that holds smoke at breathing height, from forecast wind and mixing height), a cleaner commute (only a switch that cuts emissions by at least 25%: cars to the bus, auto-rickshaws and motorbikes to the metro), when to keep children and elders indoors, and N95 guidance. Workouts move indoors from AQI 151, following US EPA guidance.
 2. **Indoor air quality hacks**: when to air the house, a DIY box-fan purifier, kitchen exhaust, wet cleaning, and which myths to skip.
 3. **Sustainable alternatives**: safe heating (carbon-monoxide safety comes first), clean cooking fuel, alternatives to waste burning, smoke-free mosquito control, and a cleaner commute.
@@ -39,7 +37,7 @@ Browser (React)                                 Server (Vercel function / Docker
 | LLM | Google Gemini API ([free tier](https://ai.google.dev/gemini-api/docs/pricing)) via a server-side function; the key never reaches the browser |
 | Hosting | Vercel Hobby (static site + one serverless function) |
 | Tests | Vitest + Testing Library + axe-core, Playwright + @axe-core/playwright |
-| CI | GitHub Actions: lint, type check, coverage, build, size check, `npm audit`, e2e |
+| CI | GitHub Actions: lint, format check, type check, coverage, build, size check, `npm audit`, e2e |
 
 **New here? Start with [SETUP.md](SETUP.md)**: key, run, test, publish, deploy and submit, step by step.
 
@@ -85,7 +83,9 @@ See **[DEPLOY.md](DEPLOY.md)** for step-by-step instructions: Vercel in about 5 
 
 **Code quality**
 - Strict TypeScript (`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`), with `typescript-eslint` strict and `jsx-a11y` strict rules.
-- Pure domain logic is kept apart from the UI. The same Web-standard request handler runs in the Vite dev server and in production.
+- SonarJS code-smell rules (cognitive complexity, nested conditionals, regex safety), a 120-character line limit and Prettier formatting, all enforced in CI with zero exceptions outside a few justified, commented lines.
+- Pure domain logic is kept apart from the UI, and plan wording lives in `src/lib/plan/copy/`, apart from the rules that choose it. Recommendation IDs are a typed union, so a typo fails to compile. Dependencies point one way: the server imports the shared domain code in `src/lib/`, never the reverse.
+- The same Web-standard request handler runs in the Vite dev server and in production.
 
 **Security**
 - The API key lives only on the server and is sent in a header, never in the URL. Error responses never echo upstream text.
@@ -94,7 +94,9 @@ See **[DEPLOY.md](DEPLOY.md)** for step-by-step instructions: Vercel in about 5 
 - Prompt-injection and forged-request hardening: the server ignores any plan data in the request and computes its own from fresh air data; the user's question is fenced and stripped of angle brackets, and the system rules tell the model to ignore embedded instructions. The reply must fit a JSON schema, and the server, not the model, writes the refusal and the yes/no word.
 - Model output is rendered as text, never as HTML, so it can't inject markup.
 - Dependencies: CI runs `npm audit --omit=dev --audit-level=high`, so it fails on any high-severity advisory in the production tree. Run `npm audit` for the current state of the full tree; it reported 0 vulnerabilities at the last check.
-- Headers: CSP (`script-src 'self'`, `connect-src` limited to Open-Meteo and the reverse-geocoding service), HSTS (on Vercel, and on the self-hosted server when `SERVE_HTTPS_HEADERS=true` behind HTTPS), `X-Frame-Options: DENY`, `nosniff`, Referrer-Policy, and a Permissions-Policy that allows geolocation only on this site.
+- Headers: CSP (`script-src 'self'`, `object-src 'none'`, `frame-ancestors 'none'`, `base-uri` and `form-action` limited to the app, `connect-src` limited to Open-Meteo and the reverse-geocoding service), HSTS (on Vercel, and on the self-hosted server when `SERVE_HTTPS_HEADERS=true` behind HTTPS), `X-Frame-Options: DENY`, `nosniff`, Referrer-Policy, `Cross-Origin-Opener-Policy` and `Cross-Origin-Resource-Policy` set to `same-origin`, `X-Permitted-Cross-Domain-Policies: none`, and a Permissions-Policy that allows geolocation only on this site. `src/securityHeaders.test.ts` checks every header and value, in `vercel.json` and on the self-hosted server's responses.
+- Supply chain: Dependabot proposes grouped weekly npm and GitHub Actions updates, CodeQL scans every push and pull request, and CI runs with read-only permissions.
+- Reporting a vulnerability, the threat model and known limits (the origin check is header-based; without Upstash the limits are per instance): see `SECURITY.md`.
 - Privacy: the profile and location stay in `localStorage`, and GPS is rounded to about 1 km. The app has no accounts, no tracking and no cookies.
 
 **Lighthouse** (production build, mobile and desktop): Accessibility 100 · Best Practices 100 · SEO 100 · Agentic Browsing 100. Lab LCP is about 0.26 s and CLS is 0.
@@ -111,6 +113,9 @@ See **[DEPLOY.md](DEPLOY.md)** for step-by-step instructions: Vercel in about 5 
 - Unit tests cover the impact maths, AQI parsing and time windows, the recommendation rules, validation, the rate limiter, prompt construction, the answer schema and checks, and the API handler.
 - Integration tests drive the full React flow with axe checks.
 - Playwright end-to-end tests run on desktop and mobile with WCAG 2.2 AA scans (light and dark, English and Hindi), keyboard-only use, a no-horizontal-scroll check, and the API's rejection paths.
+- Plan invariant tests run every rule over thousands of generated households and air conditions (e.g. advice never gets milder as AQI rises, every number in a tip is shown in its working).
+- Contract tests replay recorded real Gemini responses; a security-header test checks every header on Vercel's config and on the self-hosted server.
+- Coverage is enforced in CI at 99% of lines, statements and branches (98% of functions); every network call is mocked.
 
 **Accessibility**
 - Semantic landmarks, a skip link, a single `h1` and a logical heading order. Every input has a label, and live regions announce status changes.

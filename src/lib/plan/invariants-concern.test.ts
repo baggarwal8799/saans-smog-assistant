@@ -3,19 +3,15 @@
  * checked over ALL rendered plan text (titles, details, workings, scopes and chips), not just recommendation ids.
  */
 import { describe, expect, it } from 'vitest';
-import { impactChips } from '../chips';
 import { cautious, concernLevel } from '../concern';
 import { INDOOR_RATIO, dailyDoseUg, habitRatio, pctCut, round } from '../impact';
 import { buildPlan, homeRatio } from '../recommend';
-import { CONCERN_LEVELS, type Recommendation } from '../types';
+import { CONCERN_LEVELS, type RecId } from '../types';
 import { averagePm25 } from '../windows';
 import { profile } from '../../test/fixtures';
-import { INDIA, airReport, type Case } from '../../test/scenarios';
-import { CAUTION, MASK, ids, rec, texts, violations } from '../../test/planChecks';
+import { INDIA, airReport } from '../../test/scenarios';
+import { CAUTION, MASK, ids, rec, shown, texts, violations } from '../../test/planChecks';
 import { METRO_IF } from './shared';
-
-/** Every string the plan puts on screen for a tip, chips included. */
-const shown = (c: Case, r: Recommendation): string[] => [...texts(r), ...impactChips(r.impact, c.lang).map((chip) => chip.text)];
 
 describe('concernLevel', () => {
   it('follows the US EPA bands and takes the worse of the AQI and the current PM2.5', () => {
@@ -51,16 +47,20 @@ describe('one concern level for every phrase', () => {
     expect(
       violations((c) => [
         ids(c).has('n95') !== cautious(c.plan.concern) && `n95 at ${c.plan.concern}`,
-        ...c.plan.recommendations.flatMap((r) => shown(c, r).map((t) => MASK.test(t) && !ids(c).has('n95') && `${r.id}: mask without the mask tip`)),
+        ...c.plan.recommendations.flatMap((r) =>
+          shown(c, r).map((t) => MASK.test(t) && !ids(c).has('n95') && `${r.id}: mask without the mask tip`),
+        ),
       ]),
     ).toEqual([]);
   });
 
   it('indoor-fix and community priority never rise as the air gets cleaner', () => {
-    for (const id of ['diy-purifier', 'ventilate-smart', 'community-plan']) {
+    for (const id of ['diy-purifier', 'ventilate-smart', 'community-plan'] as const) {
       const at = (aqi: number) => {
         const r = airReport({ aqi, weather: 'none', startHour: 6, place: INDIA });
-        return buildPlan(r, profile({ hasPurifier: false }), 'en').recommendations.find((x) => x.id === id)?.priority ?? 4;
+        return (
+          buildPlan(r, profile({ hasPurifier: false }), 'en').recommendations.find((x) => x.id === id)?.priority ?? 4
+        );
       };
       const ladder = [20, 75, 120, 210].map(at);
       expect(ladder, id).toEqual([...ladder].sort((a, b) => b - a));
@@ -73,9 +73,11 @@ describe('tailoring and consistency', () => {
     expect(
       violations((c) => {
         const bigger = buildPlan(c.report, { ...c.profile, householdSize: c.profile.householdSize + 1 }, c.lang);
-        const working = (id: string) => bigger.recommendations.find((r) => r.id === id)?.impact.explanation;
+        const working = (id: RecId) => bigger.recommendations.find((r) => r.id === id)?.impact.explanation;
         return [
-          rec(c, 'stop-burning') && working('stop-burning') === rec(c, 'stop-burning')?.impact.explanation && 'waste figure ignores size',
+          rec(c, 'stop-burning') &&
+            working('stop-burning') === rec(c, 'stop-burning')?.impact.explanation &&
+            'waste figure ignores size',
           /Pledge|संकल्प/.test(working('community-plan') ?? '') &&
             working('community-plan') === rec(c, 'community-plan')?.impact.explanation &&
             'community figure ignores size',
@@ -91,11 +93,16 @@ describe('tailoring and consistency', () => {
         const avg = averagePm25(c.report.hourly, c.report.current.pm25);
         const baseline = round(dailyDoseUg(c.profile, avg, { indoorRatio: habitRatio(c.profile) }));
         // A purifier household's baseline is already a shut, filtered room: window tips keep it working.
-        const credited = c.profile.hasPurifier ? 100 : pctCut(INDOOR_RATIO.open, homeRatio(ids(c)));
+        const planIds = new Set(c.plan.recommendations.map((r) => r.id));
+        const credited = c.profile.hasPurifier ? 100 : pctCut(INDOOR_RATIO.open, homeRatio(planIds));
         const home = c.plan.recommendations.filter((r) => /at home|घर पर/.test(r.impact.scope ?? ''));
         return [
           c.plan.dose.baselineUg !== baseline && `baseline ${c.plan.dose.baselineUg} ≠ habit ${baseline}`,
-          ...home.map((r) => (r.impact.exposureCutPct ?? 0) > credited && `${r.id}: claims ${r.impact.exposureCutPct}%, dose credits ${credited}%`),
+          ...home.map(
+            (r) =>
+              (r.impact.exposureCutPct ?? 0) > credited &&
+              `${r.id}: claims ${r.impact.exposureCutPct}%, dose credits ${credited}%`,
+          ),
         ];
       }),
     ).toEqual([]);
@@ -107,7 +114,9 @@ describe('tailoring and consistency', () => {
         // A metro commuter's own mode is named, not suggested.
         (c.profile.commuteMode === 'metro' ? [] : c.plan.recommendations).map((r) => {
           const all = texts(r).join(' ');
-          return /metro|मेट्रो/i.test(all) && !all.toLowerCase().includes(METRO_IF[c.lang].toLowerCase()) && `${r.id}: unconditional metro`;
+          return /metro|मेट्रो/i.test(all) && !all.toLowerCase().includes(METRO_IF[c.lang].toLowerCase())
+            ? `${r.id}: unconditional metro`
+            : '';
         }),
       ),
     ).toEqual([]);

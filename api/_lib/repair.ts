@@ -8,6 +8,7 @@
 import type { ModelAnswer } from './answer.js';
 import { checkAnswer, withPassingLines, type CheckInput } from './checks.js';
 import { GeminiError } from './gemini.js';
+import type { Logger } from './log.js';
 
 /** Appended to the same prompt for the single retry. Angle brackets are dropped so nothing can close a fence. */
 function repairNote(violations: string[]): string {
@@ -18,7 +19,7 @@ function repairNote(violations: string[]): string {
 async function bestAnswer(
   input: CheckInput,
   ask: (prompt: string) => Promise<ModelAnswer>,
-  log: Pick<Console, 'warn'>,
+  log: Logger,
   canRetry: () => boolean | Promise<boolean>,
 ): Promise<ModelAnswer> {
   const first = await ask(input.prompt);
@@ -47,7 +48,7 @@ async function bestAnswer(
 export async function guardedAnswer(
   input: CheckInput,
   ask: (prompt: string) => Promise<ModelAnswer>,
-  log: Pick<Console, 'warn'>,
+  log: Logger,
   canRetry: () => boolean | Promise<boolean> = () => true,
 ): Promise<ModelAnswer> {
   const kept = withPassingLines(await bestAnswer(input, ask, log, canRetry), input);

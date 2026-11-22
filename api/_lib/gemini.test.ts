@@ -5,7 +5,7 @@ import { handleAssistant, resetAssistantState } from './assistant';
 import { ANSWER_SCHEMA } from './answer';
 import { CapReachedError, callGemini, modelChain, thinkingFor } from './gemini';
 import { SYSTEM_INSTRUCTION } from './prompt';
-import { body, gemini, geminiResponse, modelJson, post, quietLog, sentBody, withAir } from './test-helpers';
+import { body, gemini, geminiResponse, modelJson, post, quietLog, sentBody, withAir } from '../../src/test/apiHelpers';
 
 beforeEach(() => {
   resetAssistantState();
@@ -23,10 +23,15 @@ describe('callGemini', () => {
 
   it('sends the key in a header (never the URL) to gemini-flash-lite-latest, with low thinking and the schema', async () => {
     const f = gemini('ok');
-    expect(await callGemini(req, { GEMINI_API_KEY: 'k' }, f)).toEqual({ offTopic: false, reply: 'none', lines: ['ok'] });
+    expect(await callGemini(req, { GEMINI_API_KEY: 'k' }, f)).toEqual({
+      offTopic: false,
+      reply: 'none',
+      lines: ['ok'],
+    });
     const [url, init] = f.mock.calls[0] as [string, RequestInit];
-    expect(url)
-      .toBe('https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent');
+    expect(url).toBe(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent',
+    );
     expect(url).not.toContain('k=');
     expect((init.headers as Record<string, string>)['x-goog-api-key']).toBe('k');
     const sent = sentBody(f);
@@ -41,10 +46,17 @@ describe('callGemini', () => {
   it('builds the model chain from GEMINI_MODEL, without duplicates, and ignores unsafe names', () => {
     expect(modelChain({})).toEqual(['gemini-flash-lite-latest', 'gemini-3.1-flash-lite', 'gemini-flash-latest']);
     expect(modelChain({ GEMINI_MODEL: 'gemini-3.8-flash' })[0]).toBe('gemini-3.8-flash');
-    expect(modelChain({ GEMINI_MODEL: 'gemini-3.8-flash' }))
-      .toEqual(['gemini-3.8-flash', 'gemini-flash-lite-latest', 'gemini-3.1-flash-lite', 'gemini-flash-latest']);
-    expect(modelChain({ GEMINI_MODEL: 'gemini-flash-latest' }))
-      .toEqual(['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-3.1-flash-lite']);
+    expect(modelChain({ GEMINI_MODEL: 'gemini-3.8-flash' })).toEqual([
+      'gemini-3.8-flash',
+      'gemini-flash-lite-latest',
+      'gemini-3.1-flash-lite',
+      'gemini-flash-latest',
+    ]);
+    expect(modelChain({ GEMINI_MODEL: 'gemini-flash-latest' })).toEqual([
+      'gemini-flash-latest',
+      'gemini-flash-lite-latest',
+      'gemini-3.1-flash-lite',
+    ]);
     for (const bad of ['../../evil?x=', 'gemini..x', 'a/b']) {
       expect(modelChain({ GEMINI_MODEL: bad })[0]).toBe('gemini-flash-lite-latest');
     }
@@ -102,8 +114,8 @@ describe('callGemini', () => {
   });
 
   it('ignores "thought" parts, and tries the next model when a reply misses the schema or is cut off', async () => {
-    const withThought = vi.fn<typeof fetch>(
-      async () => reply([{ text: 'thinking…', thought: true }, { text: lines('Real answer.') }]),
+    const withThought = vi.fn<typeof fetch>(async () =>
+      reply([{ text: 'thinking…', thought: true }, { text: lines('Real answer.') }]),
     );
     expect((await callGemini(req, { GEMINI_API_KEY: 'k' }, withThought)).lines).toEqual(['Real answer.']);
     const f = vi
@@ -112,7 +124,9 @@ describe('callGemini', () => {
       .mockResolvedValueOnce(geminiResponse('Plain prose, not JSON.'))
       .mockResolvedValueOnce(geminiResponse(lines('Complete.')));
     expect((await callGemini(req, { GEMINI_API_KEY: 'k' }, f, opts)).lines).toEqual(['Complete.']);
-    expect(String(quietLog.warn.mock.calls[0]?.[0])).toMatch(/does not fit the schema \(MAX_TOKENS\)\), trying next model/);
+    expect(String(quietLog.warn.mock.calls[0]?.[0])).toMatch(
+      /does not fit the schema \(MAX_TOKENS\)\), trying next model/,
+    );
   });
 
   it('treats empty or safety-blocked output as a failure', async () => {
@@ -129,7 +143,9 @@ describe('callGemini', () => {
     const charge = vi.fn(() => units-- > 0);
     const busy = vi.fn<typeof fetch>(async () => status(503));
     const started = Date.now();
-    await expect(callGemini(req, { GEMINI_API_KEY: 'k' }, busy, { ...opts, charge })).rejects.toBeInstanceOf(CapReachedError);
+    await expect(callGemini(req, { GEMINI_API_KEY: 'k' }, busy, { ...opts, charge })).rejects.toBeInstanceOf(
+      CapReachedError,
+    );
     expect(busy).toHaveBeenCalledTimes(2); // two models tried, the third refused before any HTTP call
     expect(charge).toHaveBeenCalledTimes(3);
     expect(Date.now() - started).toBeLessThan(1_000); // no "all busy" pause and second round

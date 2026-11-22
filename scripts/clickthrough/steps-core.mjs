@@ -29,8 +29,8 @@ export async function coreSteps(page) {
     const aqi = await page.locator('.aqi-value').textContent();
     const level = await page.locator('.aqi-label').textContent();
     must(Number(aqi) > 0, `bad AQI "${aqi}"`);
-    must(await page.locator('.ribbon-bars .bar').count() >= 12, 'ribbon has too few hours');
-    must(await page.locator('.windows .window').count() >= 1, 'no time windows');
+    must((await page.locator('.ribbon-bars .bar').count()) >= 12, 'ribbon has too few hours');
+    must((await page.locator('.windows .window').count()) >= 1, 'no time windows');
     return `AQI ${aqi} ${level}`;
   });
 
@@ -40,7 +40,7 @@ export async function coreSteps(page) {
     const rowCount = await rows.count();
     must(steps >= 1 && steps <= 3, `steps = ${steps}`);
     for (let i = 0; i < rowCount; i++) await rows.nth(i).click();
-    must(await page.locator('.row-item details[open]').count() === rowCount, 'not every row opened');
+    must((await page.locator('.row-item details[open]').count()) === rowCount, 'not every row opened');
     const whys = page.locator('.step .why summary');
     for (let i = 0; i < (await whys.count()); i++) await whys.nth(i).click();
     return `${steps} steps, ${rowCount} rows expanded`;
@@ -55,7 +55,12 @@ export async function coreSteps(page) {
     await page.getByLabel('Main daily commute').selectOption('motorbike');
     await page.getByLabel('Cooking fuel').selectOption('biomass');
     await page.getByLabel('Winter heating').selectOption('coal');
-    for (const label of ['Elderly (65+) at home', 'Someone with asthma, COPD or heart disease', 'We have an air purifier', 'Waste or leaves are burned at or near home']) {
+    for (const label of [
+      'Elderly (65+) at home',
+      'Someone with asthma, COPD or heart disease',
+      'We have an air purifier',
+      'Waste or leaves are burned at or near home',
+    ]) {
       await page.getByLabel(label).check();
     }
     const after = await page.locator('.step h4').allTextContents();
@@ -69,7 +74,7 @@ export async function coreSteps(page) {
   await step(page, 'commute hidden for work from home', async () => {
     await page.getByRole('button', { name: 'Edit household' }).click();
     await page.getByLabel('Main daily commute').selectOption('wfh');
-    must(await page.getByLabel('One-way commute distance (km)').count() === 0, 'distance still shown');
+    must((await page.getByLabel('One-way commute distance (km)').count()) === 0, 'distance still shown');
     await page.getByLabel('Main daily commute').selectOption('car');
     await page.getByRole('button', { name: 'Done' }).click();
   });
@@ -146,14 +151,19 @@ export async function finalSteps(page) {
 
   await step(page, 'keyboard: skip link and focus', async () => {
     await page.keyboard.press('Tab');
-    must(await page.getByRole('link', { name: 'Skip to main content' }).evaluate((el) => el === document.activeElement), 'skip link not focused first');
+    must(
+      await page.getByRole('link', { name: 'Skip to main content' }).evaluate((el) => el === document.activeElement),
+      'skip link not focused first',
+    );
     await page.keyboard.press('Enter');
     must(await page.locator('#main').evaluate((el) => el === document.activeElement), 'main not focused');
   });
 
   await step(page, 'phone width has no sideways scroll', async () => {
     await page.setViewportSize({ width: 360, height: 780 });
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
     must(overflow <= 0, `overflow ${overflow}px`);
   });
 }

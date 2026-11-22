@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { profile } from '../test/fixtures';
+import { impactChips } from './chips';
 import {
   EMISSION_KG_PER_KM,
   INDOOR_RATIO,
@@ -65,7 +66,8 @@ describe('impact engine', () => {
 
     it('drops with a mask, indoor exercise and a purifier', () => {
       const base = dailyDoseUg(p, 100);
-      const better = dailyDoseUg(p, 100, { maskOutdoors: true, exerciseIndoors: true, indoorRatio: INDOOR_RATIO.purifier });
+      const habits = { maskOutdoors: true, exerciseIndoors: true, indoorRatio: INDOOR_RATIO.purifier };
+      const better = dailyDoseUg(p, 100, habits);
       expect(better).toBeLessThan(base * 0.5);
     });
 
@@ -74,7 +76,8 @@ describe('impact engine', () => {
     });
 
     it('the baseline is the household habit: windows open, or its own purifier running', () => {
-      expect(dailyDoseUg(profile({ ...p, hasPurifier: true }), 100)).toBe(dailyDoseUg(p, 100, { indoorRatio: INDOOR_RATIO.purifier }));
+      const withPurifier = dailyDoseUg(profile({ ...p, hasPurifier: true }), 100);
+      expect(withPurifier).toBe(dailyDoseUg(p, 100, { indoorRatio: INDOOR_RATIO.purifier }));
       expect(dailyDoseUg(p, 100)).toBe(dailyDoseUg(p, 100, { indoorRatio: INDOOR_RATIO.open }));
     });
 
@@ -87,5 +90,14 @@ describe('impact engine', () => {
     it('can model a different commute mode', () => {
       expect(dailyDoseUg(p, 100, { commuteMode: 'metro' })).toBeLessThan(dailyDoseUg(p, 100, { commuteMode: 'walk' }));
     });
+  });
+});
+
+describe('impactChips', () => {
+  it('writes a cut with no scope as a plain PM2.5 cut, never "undefined"', () => {
+    const [chip, ...rest] = impactChips({ exposureCutPct: 40, explanation: 'x' }, 'en');
+    expect(rest).toEqual([]);
+    expect(chip?.kind).toBe('lungs');
+    expect(chip?.text).toMatch(/^Cuts PM2\.5\s+≈ 40%$/);
   });
 });

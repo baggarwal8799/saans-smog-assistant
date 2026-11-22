@@ -3,7 +3,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearAirCache } from '../../src/lib/aqi';
 import { REFUSAL_TEXT } from './answer';
 import { handleAssistant, resetAssistantState } from './assistant';
-import { body, geminiResponse, modelJson, post, quietLog, replies, sentPrompt, textOf, withAir } from './test-helpers';
+import {
+  body,
+  geminiResponse,
+  modelJson,
+  post,
+  quietLog,
+  replies,
+  sentPrompt,
+  textOf,
+  withAir,
+} from '../../src/test/apiHelpers';
 
 const env = { GEMINI_API_KEY: 'k' };
 // At the fixture's AQI the server's US EPA verdict for kids outdoors is "no", so the answer opens with "No.".

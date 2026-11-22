@@ -7,9 +7,9 @@ import { aqiLevel } from './aqi.js';
 import { askedPeople } from './askedPeople.js';
 import { asciiDigits, askedTimes, forecastAt } from './askedTimes.js';
 import { EPA_BANDS, epaActivity, epaVerdict, type Verdict } from './epa.js';
-import { CHILD_MASK_NOTE } from './plan/shared.js';
+import { CHILD_MASK_NOTE } from './plan/copy/masks.js';
 import type { AirReport, Lang, Profile } from './types.js';
-import type { EpaReply } from '../../api/_lib/contract.js';
+import type { EpaReply } from './contract.js';
 
 export { EPA_BANDS, epaVerdict, type Verdict };
 
@@ -18,9 +18,9 @@ export { EPA_BANDS, epaVerdict, type Verdict };
  * is left out because it is also a verb for machines: "should I run the air purifier?" is not about going out.
  */
 const OUTDOOR = new RegExp(
-  String.raw`\b(outside|outdoors?|park|play|walk|go for a run|running|jog|cycle|bike|school|bus stop|stroll|`
-    + String.raw`cricket|football|exercise|sport)\b`
-    + '|बाहर|पार्क|खेल|टहल|सैर|दौड़|स्कूल|व्यायाम',
+  String.raw`\b(outside|outdoors?|park|play|walk|go for a run|running|jog|cycle|bike|school|bus stop|stroll|` +
+    String.raw`cricket|football|exercise|sport)\b` +
+    '|बाहर|पार्क|खेल|टहल|सैर|दौड़|स्कूल|व्यायाम',
   'i',
 );
 /**
@@ -28,8 +28,8 @@ const OUTDOOR = new RegExp(
  * question about going out: "a poem about cricket" gets no activity verdict.
  */
 const ASK = new RegExp(
-  String.raw`\b(can|could|should|may|safe|ok|okay|fine|allowed|when|good time|what about|how about)\b`
-    + '|सकत|सुरक्षित|ठीक|चाहिए|कब|क्या',
+  String.raw`\b(can|could|should|may|safe|ok|okay|fine|allowed|when|good time|what about|how about)\b` +
+    '|सकत|सुरक्षित|ठीक|चाहिए|कब|क्या',
   'i',
 );
 
@@ -57,13 +57,15 @@ const SENSITIVE = {
       String.raw`breathing (?:trouble|problem|difficult)\w*)\b|`,
       String.raw`(?<![\p{L}\p{M}])`,
       String.raw`(?:अस्थमा|दमा|दिल|हृदय|फेफड़[\p{L}\p{M}]*|सा[ँं]स की (?:तकलीफ़?|बीमारी))(?![\p{L}\p{M}])`,
-    ].join('').normalize('NFC'),
+    ]
+      .join('')
+      .normalize('NFC'),
     'iu',
   ),
   /** "70-year-old", "aged 70", "he is 70", "70 साल": the age is group 1 or 2. */
   age: new RegExp(
-    String.raw`(\d{1,3})(?:[-\s]?(?:years?|yrs?)[-\s]?old|\s*(?:साल|वर्ष)(?!\s*से))`
-      + String.raw`|\b(?:aged?|(?:he|she)(?:'s| is))\s+(\d{1,3})\b(?![:.]\d|\s*[ap]\.?m)`,
+    String.raw`(\d{1,3})(?:[-\s]?(?:years?|yrs?)[-\s]?old|\s*(?:साल|वर्ष)(?!\s*से))` +
+      String.raw`|\b(?:aged?|(?:he|she)(?:'s| is))\s+(\d{1,3})\b(?![:.]\d|\s*[ap]\.?m)`,
     'giu',
   ),
 };
@@ -84,9 +86,10 @@ export function bandGuidance(aqi: number, profile: Profile): string {
     profile.hasElderly && 'older adults',
     profile.hasRespiratory && 'someone with a heart or lung condition',
   ].filter(Boolean);
-  const note = who.length > 0
-    ? ` This household has ${who.join(', ')} (US EPA sensitive groups): say what this means for them.`
-    : '';
+  const note =
+    who.length > 0
+      ? ` This household has ${who.join(', ')} (US EPA sensitive groups): say what this means for them.`
+      : '';
   return `US EPA guidance for ${name} air (US AQI ${range}): ${caution}.${note}`;
 }
 
@@ -115,14 +118,24 @@ function advice(aqi: number, sensitive: boolean, gentle: boolean): string {
   const level = epaActivity(aqiLevel(aqi), sensitive);
   if (level === 'fine') return 'outdoor activity is fine';
   if (level === 'reduce') return `${EPA_ACTION.reduce}, with more breaks`;
-  if (level === 'avoid' && gentle) return `${EPA_ACTION.avoidHeavy}; if a short trip out cannot wait, keep it gentle${AVOID_NOTE}`;
+  if (level === 'avoid' && gentle)
+    return `${EPA_ACTION.avoidHeavy}; if a short trip out cannot wait, keep it gentle${AVOID_NOTE}`;
   return `${level === 'avoidAll' ? EPA_ACTION.avoidAll : EPA_ACTION.avoidHeavy}${AVOID_NOTE}`;
 }
 
+/**
+ * The one yes/no word table: the verdict's reply below, and the reply word the server opens an answer with
+ * (api/_lib/answer.ts), so the CONTEXT and the rendered answer always use the same word.
+ */
+export const YES_NO: Readonly<Record<Lang, Record<EpaReply, string>>> = {
+  en: { yes: 'Yes', no: 'No' },
+  hi: { yes: 'हाँ', no: 'नहीं' },
+};
+
 /** The one-word reply a yes/no question gets for each verdict, so the model copies it instead of hedging. */
 const REPLY: Readonly<Record<Lang, Record<Verdict, string>>> = {
-  en: { fine: 'Yes', reduce: 'Only briefly and gently', avoid: 'No' },
-  hi: { fine: 'हाँ', reduce: 'सिर्फ़ थोड़ी देर और हल्का', avoid: 'नहीं' },
+  en: { fine: YES_NO.en.yes, reduce: 'Only briefly and gently', avoid: YES_NO.en.no },
+  hi: { fine: YES_NO.hi.yes, reduce: 'सिर्फ़ थोड़ी देर और हल्का', avoid: YES_NO.hi.no },
 };
 
 export interface OutdoorFacts {
@@ -153,12 +166,13 @@ export function outdoorFacts(question: string, report: AirReport, profile: Profi
   const gentle = isGentle(question);
   const times = askedTimes(question);
   // A part of the day is judged at its worst hour: conservative, as health advice should be.
-  const at = times.length > 0
-    ? times.map((t) => ({
-      label: `${t.hours.length > 1 ? 'in the' : 'at'} ${t.label}`,
-      aqi: forecastAt(t, report).worst?.usAqi ?? report.current.usAqi,
-    }))
-    : [{ label: 'now', aqi: report.current.usAqi }];
+  const at =
+    times.length > 0
+      ? times.map((t) => ({
+          label: `${t.hours.length > 1 ? 'in the' : 'at'} ${t.label}`,
+          aqi: forecastAt(t, report).worst?.usAqi ?? report.current.usAqi,
+        }))
+      : [{ label: 'now', aqi: report.current.usAqi }];
   const lines = at.map(({ label, aqi }) => {
     const each = people.map(({ who, sensitive }) => {
       verdicts.add(epaVerdict(aqi, sensitive));

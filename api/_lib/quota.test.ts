@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_MAX_AI_CALLS_PER_DAY,
   DEFAULT_MAX_AI_REQUESTS_PER_CLIENT_PER_DAY,
@@ -54,5 +54,12 @@ describe('daily AI call ceiling', () => {
     expect(await quota.take(1, 'c')).toBe(true); // a third key: "b", the least recently used, is forgotten
     expect(await quota.remaining(1, 'a')).toBe(0);
     expect(await quota.remaining(1, 'b')).toBe(1);
+  });
+
+  it("counts under today's real UTC date when no clock is given", async () => {
+    const store = new MemoryStore();
+    const incr = vi.spyOn(store, 'incr');
+    expect(await new DailyQuota(store, 'global').take(1)).toBe(true);
+    expect(incr.mock.calls[0]?.[0]).toBe(`global:${new Date().toISOString().slice(0, 10)}:*`);
   });
 });

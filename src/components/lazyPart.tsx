@@ -3,7 +3,7 @@ import { t } from '../lib/i18n';
 import type { Lang } from '../lib/types';
 
 /** Shown in place of a part whose chunk could not be fetched (the connection dropped after the first load). */
-function PartUnavailable({ lang }: { lang: Lang }) {
+function PartUnavailable({ lang }: Readonly<{ lang: Lang }>) {
   return (
     <p role="alert" className="error">
       {t(lang, 'partFailed')}

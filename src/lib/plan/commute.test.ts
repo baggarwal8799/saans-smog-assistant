@@ -12,7 +12,8 @@ describe('commute switches', () => {
       for (const km of [1, 5, 12, 40]) {
         for (const band of BAND_ORDER) {
           const alt = suggestCommute(mode, km, band);
-          if (alt) expect(EMISSION_KG_PER_KM[alt], `${mode} → ${alt}`).toBeLessThanOrEqual(EMISSION_KG_PER_KM[mode] * 0.75);
+          if (alt)
+            expect(EMISSION_KG_PER_KM[alt], `${mode} → ${alt}`).toBeLessThanOrEqual(EMISSION_KG_PER_KM[mode] * 0.75);
         }
       }
     }
@@ -46,10 +47,14 @@ describe('commute switches', () => {
 describe('every tip has a real impact, for every household and every air level', () => {
   it.each(COMMUTE_MODES)('commute: %s', (mode) => {
     for (const aqi of [40, 90, 130, 168, 250, 350]) {
-      for (const extra of [{}, { cooking: 'biomass', heating: 'gas', burnsWaste: true, hasRespiratory: true } as const]) {
+      for (const extra of [
+        {},
+        { cooking: 'biomass', heating: 'gas', burnsWaste: true, hasRespiratory: true } as const,
+      ]) {
         const plan = buildPlan(report({ usAqi: aqi }), profile({ commuteMode: mode, commuteKm: 7, ...extra }), 'en');
         for (const r of plan.recommendations) {
-          const real = (r.impact.co2KgPerMonth ?? 0) > 0 || (r.impact.exposureCutPct ?? 0) > 0 || r.impact.removesSource === true;
+          const { co2KgPerMonth, exposureCutPct, removesSource } = r.impact;
+          const real = (co2KgPerMonth ?? 0) > 0 || (exposureCutPct ?? 0) > 0 || removesSource === true;
           expect(real, `${mode} @${aqi}: ${r.id}`).toBe(true);
           expect(r.impact.explanation, r.id).not.toMatch(/= 0 kg|= −/);
         }

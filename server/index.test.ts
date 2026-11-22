@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { brotliDecompressSync, gunzipSync } from 'node:zlib';
 import { aiStatus, createApp, securityHeaders } from './index';
 import { pickEncoding, safePath } from './static';
+import { LIMITS } from '../src/lib/contract';
 
 const VERCEL = JSON.stringify({
   headers: [
@@ -23,7 +24,10 @@ const VERCEL = JSON.stringify({
 
 describe('securityHeaders', () => {
   it('keeps HTTPS-only headers only when serving over HTTPS', () => {
-    expect(securityHeaders(VERCEL, false)).toEqual({ 'Content-Security-Policy': "default-src 'self'", 'X-Frame-Options': 'DENY' });
+    expect(securityHeaders(VERCEL, false)).toEqual({
+      'Content-Security-Policy': "default-src 'self'",
+      'X-Frame-Options': 'DENY',
+    });
     expect(securityHeaders(VERCEL, true)['Strict-Transport-Security']).toBe('max-age=1');
     expect(securityHeaders(VERCEL, true)['Content-Security-Policy']).toContain('upgrade-insecure-requests');
     expect(securityHeaders('{}', false)).toEqual({});
@@ -81,7 +85,11 @@ describe('createApp', () => {
     expect((await fetch(`${base}/api/assistant`)).status).toBe(405);
     const json = { 'content-type': 'application/json' };
     // A browser on the page sends its Origin; a POST without one (a script) is refused.
-    const bad = await fetch(`${base}/api/assistant`, { method: 'POST', headers: { ...json, origin: base }, body: '{}' });
+    const bad = await fetch(`${base}/api/assistant`, {
+      method: 'POST',
+      headers: { ...json, origin: base },
+      body: '{}',
+    });
     expect(bad.status).toBe(400);
     expect(bad.headers.get('x-frame-options')).toBe('DENY');
     expect((await fetch(`${base}/api/assistant`, { method: 'POST', headers: json, body: '{}' })).status).toBe(403);
@@ -91,8 +99,20 @@ describe('createApp', () => {
   });
 
   it('refuses oversized bodies before the handler reads them', async () => {
-    const res = await fetch(`${base}/api/assistant`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: 'x'.repeat(20_000) });
+    const res = await fetch(`${base}/api/assistant`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: 'x'.repeat(LIMITS.bodyBytes + 1),
+    });
     expect(res.status).toBe(413);
+    expect(await res.json()).toEqual({ error: 'too_large' });
+    // The same cap as the handler: a body of exactly LIMITS.bodyBytes reaches it (and fails the origin check).
+    const atCap = await fetch(`${base}/api/assistant`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: 'x'.repeat(LIMITS.bodyBytes),
+    });
+    expect(atCap.status).toBe(403);
   });
 });
 
@@ -117,7 +137,8 @@ describe('compression and caching', () => {
   // Raw HTTP so the test sees exactly what the server sends (fetch would decompress for us).
   async function raw(path: string, headers: Record<string, string>) {
     const { request } = await import('node:http');
-    return new Promise<{ status: number; headers: Record<string, string | string[] | undefined>; body: Buffer }>((done, fail) => {
+    type Raw = { status: number; headers: Record<string, string | string[] | undefined>; body: Buffer };
+    return new Promise<Raw>((done, fail) => {
       const req = request(`${base}${path}`, { headers }, (res) => {
         const chunks: Buffer[] = [];
         res.on('data', (c: Buffer) => chunks.push(c));

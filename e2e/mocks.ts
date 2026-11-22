@@ -2,7 +2,9 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page } from '@playwright/test';
 
 /** Shared Playwright fixtures: every external API is mocked so the e2e suites never touch the network. */
-const PM = [180, 185, 190, 195, 200, 205, 210, 215, 200, 170, 140, 120, 100, 90, 80, 85, 110, 150, 190, 220, 240, 245, 230, 210];
+const PM = [
+  180, 185, 190, 195, 200, 205, 210, 215, 200, 170, 140, 120, 100, 90, 80, 85, 110, 150, 190, 220, 240, 245, 230, 210,
+];
 
 function airPayload() {
   const time: string[] = [];
@@ -37,7 +39,9 @@ function weatherPayload() {
 
 export async function mockApis(page: Page) {
   await page.route('https://geocoding-api.open-meteo.com/**', (route) =>
-    route.fulfill({ json: { results: [{ name: 'New Delhi', latitude: 28.61, longitude: 77.21, admin1: 'Delhi', country: 'India' }] } }),
+    route.fulfill({
+      json: { results: [{ name: 'New Delhi', latitude: 28.61, longitude: 77.21, admin1: 'Delhi', country: 'India' }] },
+    }),
   );
   await page.route('https://air-quality-api.open-meteo.com/**', (route) => route.fulfill({ json: airPayload() }));
   await page.route('https://api.open-meteo.com/**', (route) => route.fulfill({ json: weatherPayload() }));
@@ -57,6 +61,38 @@ export async function openHousehold(page: Page) {
 }
 
 export async function expectNoA11yViolations(page: Page) {
-  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice']).analyze();
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'])
+    .analyze();
   expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(' | ')}`)).toEqual([]);
+}
+
+/** Expands the first `count` "More ways" rows. */
+export async function expandRows(page: Page, count: number) {
+  const rows = page.locator('.row-item summary');
+  for (let i = 0; i < count; i++) await rows.nth(i).click();
+}
+
+/** A realistic success body for POST /api/assistant (contract.ts AssistantResponse): a verdict line, then bullets. */
+export const ASSISTANT_ANSWER = {
+  question: [
+    'No. At 7:30 the air is still inside the smog trap, so a run outdoors would breathe in the worst of it.',
+    '• Run after 13:00, when PM2.5 falls to about 90.',
+    '• If you must go early, train indoors with the purifier on.',
+    '• Keep windows shut until the air mixes after 08:00.',
+  ].join('\n'),
+  summary: 'Today is very unhealthy in New Delhi.\n• Stay indoors until 13:00.\n• Run the purifier in the bedroom.',
+} as const;
+
+/** Answers /api/assistant as a configured server would, and records each request body the page sent. */
+export async function mockAssistant(page: Page): Promise<Record<string, unknown>[]> {
+  const sent: Record<string, unknown>[] = [];
+  await page.route('**/api/assistant', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    sent.push(body);
+    const text = body.mode === 'question' ? ASSISTANT_ANSWER.question : ASSISTANT_ANSWER.summary;
+    return route.fulfill({ status: 200, json: { text } });
+  });
+  return sent;
 }

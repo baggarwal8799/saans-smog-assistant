@@ -50,9 +50,11 @@ describe('App: air, plan and household', () => {
     }
     expect(within(plan).getByText(/less pollution in your lungs/)).toBeInTheDocument();
     // Every "How we worked this out" toggle has its own accessible name (the tip's title).
-    const toggles = [...plan.querySelectorAll('.why summary')].map((el) => el.textContent ?? '');
+    const toggles = [...plan.querySelectorAll('.why summary')].map((el) => el.textContent);
     expect(new Set(toggles).size).toBe(toggles.length);
-    expect(within(plan).getAllByText(/Cuts PM2.5 (outdoors|at home|while exercising|in the kitchen|for them)/).length).toBeGreaterThan(2);
+    expect(
+      within(plan).getAllByText(/Cuts PM2.5 (outdoors|at home|while exercising|in the kitchen|for them)/).length,
+    ).toBeGreaterThan(2);
     expect(within(plan).getAllByText('Removes a smoke source').length).toBeGreaterThan(0);
     expect(within(plan).getByRole('heading', { name: /Community action/ })).toBeInTheDocument();
     expect(within(plan).getAllByText(/kg CO₂/).length).toBeGreaterThan(0);
@@ -125,7 +127,9 @@ describe('App: air, plan and household', () => {
     render(<App />);
     expect(await screen.findByText(/Could not load air quality/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
-    await waitFor(() => expect(fetchMock.mock.calls.filter((c) => String(c[0]).includes('air-quality')).length).toBe(2));
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.filter((c) => String(c[0]).includes('air-quality')).length).toBe(2),
+    );
   });
 
   it('switches the whole interface to Hindi and sets the document language', async () => {

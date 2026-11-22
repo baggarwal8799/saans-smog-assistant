@@ -27,8 +27,8 @@ const PEOPLE: readonly Person[] = [
   {
     label: { en: 'grandparents', hi: 'दादा-दादी या नाना-नानी' },
     asked: new RegExp(
-      String.raw`\b(grand(pa|ma|father|mother|parents?)|elderly|old(er)? (man|woman|people))\b|`
-        + 'दादा|दादी|नाना|नानी|बुज़ुर्ग|बुजुर्ग',
+      String.raw`\b(grand(pa|ma|father|mother|parents?)|elderly|old(er)? (man|woman|people))\b|` +
+        'दादा|दादी|नाना|नानी|बुज़ुर्ग|बुजुर्ग',
       'i',
     ),
   },
@@ -43,9 +43,15 @@ export function askedPeople(question: string): Person[] {
   return PEOPLE.filter((p) => p.asked.test(question));
 }
 
-/** A CONTEXT line naming everyone the question is about, or none when it names fewer than two. */
-export function askedPeopleFact(question: string, lang: Lang): string[] {
+/**
+ * A CONTEXT line naming everyone the question is about, so the answer covers each of them. A single person is named
+ * only in a follow-up, where the subject can change from the earlier question ("And what about my father?").
+ */
+export function askedPeopleFact(question: string, lang: Lang, followUp = false): string[] {
   const people = askedPeople(question);
-  if (people.length < 2) return [];
-  return [`People asked about: ${people.map((p) => p.label[lang]).join(', ')}. Answer for each of them by name.`];
+  if (people.length === 0 || (people.length === 1 && !followUp)) return [];
+  const names = people.map((p) => p.label[lang]).join(', ');
+  return people.length === 1
+    ? [`Person asked about: ${names}. Name them in the answer.`]
+    : [`People asked about: ${names}. Answer for each of them by name.`];
 }

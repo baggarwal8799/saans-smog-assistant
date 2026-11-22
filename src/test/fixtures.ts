@@ -1,4 +1,4 @@
-import type { AirReport, HourPoint, Place, Profile } from '../lib/types';
+import type { AirReport, HourPoint, Place, Plan, Profile } from '../lib/types';
 import { DEFAULT_PROFILE } from '../lib/profile';
 
 export const DELHI: Place = { name: 'New Delhi', lat: 28.61, lon: 77.21, region: 'Delhi', country: 'India' };
@@ -20,9 +20,25 @@ export function hourly(startHour = 0, hours = 48, day = '2026-11-17'): HourPoint
 }
 
 /** US EPA 2024 PM2.5 breakpoints: [AQI, µg/m³]. */
-const PM_BREAKS = [[0, 0], [50, 9], [100, 35.4], [150, 55.4], [200, 125.4], [300, 225.4], [500, 325.4]] as const;
+const PM_BREAKS = [
+  [0, 0],
+  [50, 9],
+  [100, 35.4],
+  [150, 55.4],
+  [200, 125.4],
+  [300, 225.4],
+  [500, 325.4],
+] as const;
 /** US EPA 8-hour ozone breakpoints: [AQI, ppb]; 1 ppb ≈ 1.96 µg/m³. */
-const O3_BREAKS = [[0, 0], [50, 54], [100, 70], [150, 85], [200, 105], [300, 200], [500, 400]] as const;
+const O3_BREAKS = [
+  [0, 0],
+  [50, 54],
+  [100, 70],
+  [150, 85],
+  [200, 105],
+  [300, 200],
+  [500, 400],
+] as const;
 
 function interpolate(table: readonly (readonly [number, number])[], x: number, from: 0 | 1): number {
   const to = from === 0 ? 1 : 0;
@@ -44,7 +60,16 @@ export function report(overrides: Partial<AirReport['current']> = {}, startHour 
   return {
     place: DELHI,
     timezone: 'Asia/Kolkata',
-    current: { time: `2026-11-17T${String(startHour).padStart(2, '0')}:00`, usAqi, pm25: pm25ForAqi(usAqi), pm10: 320, no2: 60, o3: 20, dominant: 'pm25', ...overrides },
+    current: {
+      time: `2026-11-17T${String(startHour).padStart(2, '0')}:00`,
+      usAqi,
+      pm25: pm25ForAqi(usAqi),
+      pm10: 320,
+      no2: 60,
+      o3: 20,
+      dominant: 'pm25',
+      ...overrides,
+    },
     hourly: hourly(startHour, 42),
   };
 }
@@ -93,3 +118,6 @@ export function weatherPayload() {
     },
   };
 }
+
+/** The ids of a plan's recommendations, in order. */
+export const planIds = (plan: Plan): string[] => plan.recommendations.map((r) => r.id);

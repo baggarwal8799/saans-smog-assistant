@@ -2,16 +2,36 @@
  * Shows a model answer as plain text, never HTML, so it cannot inject markup. Lines that start with a bullet
  * ("• " or "- ") become a real list, so screen readers announce "list, 3 items" instead of reading symbols.
  */
-const BULLET = /^\s*(?:•|-)\s+/;
+const BULLET = /^\s*[•-]\s+/;
 
 type Block = { kind: 'p'; text: string } | { kind: 'ul'; items: string[] };
 
-/** Models sometimes put bullets on one line ("Text. • A. • B."); start a new line at each inline bullet. */
-const INLINE_BULLET = /\s+•\s+/g;
+const hasTrailingSpace = (s: string): boolean => s !== s.trimEnd();
+
+/**
+ * Models sometimes put bullets on one line ("Text. • A. • B."); start a new line at each " • ".
+ * A string scan, not a regex, so long runs of spaces cannot cause backtracking.
+ */
+export function breakInlineBullets(text: string): string {
+  const [first = '', ...rest] = text.split('•');
+  let out = first;
+  let spaceBefore = hasTrailingSpace(first);
+  for (const part of rest) {
+    const body = part.trimStart();
+    if (spaceBefore && body !== part) {
+      out = `${out.trimEnd()}\n• ${body}`;
+      spaceBefore = hasTrailingSpace(body);
+    } else {
+      out += `•${part}`;
+      spaceBefore = hasTrailingSpace(part);
+    }
+  }
+  return out;
+}
 
 export function toBlocks(text: string): Block[] {
   const blocks: Block[] = [];
-  for (const raw of text.replace(INLINE_BULLET, '\n• ').split('\n')) {
+  for (const raw of breakInlineBullets(text).split('\n')) {
     const line = raw.trim();
     if (!line) continue;
     const last = blocks[blocks.length - 1];
@@ -26,7 +46,7 @@ export function toBlocks(text: string): Block[] {
   return blocks;
 }
 
-export function AnswerText({ text }: { text: string }) {
+export function AnswerText({ text }: Readonly<{ text: string }>) {
   return (
     <div className="answer-text">
       {toBlocks(text).map((b, i) =>

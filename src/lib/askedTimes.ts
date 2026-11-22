@@ -1,10 +1,6 @@
 /**
- * Times the user mentions ("7:30", "7 am", "6 pm", "शाम 6 बजे", "सुबह 7 बजे"), each turned into one fact line
- * computed from the forecast: the air at that time and whether it falls in the smog trap or the worst window. The
- * model is handed the answer because looking an hour up in a list is where it goes wrong. Pure.
- * A clock time with no am/pm or day part is read as written, on the 24-hour clock: "7:30" is 07:30.
- * Every "inside" is decided on full ISO date-times (windows.ts `within`), never on hours of the day, so a span
- * that crosses midnight and a time before a span starts are both judged correctly.
+ * Times the user mentions, each turned into a computed fact line: the model is handed the answer because looking
+ * an hour up in a list is where it goes wrong. "Inside" uses full date-times, so midnight-crossing spans work.
  */
 import { addHours, endTime, formatHour, isLaterDay, spanText, within, type Span } from './windows.js';
 import type { AirReport, HourPoint, Plan } from './types.js';
@@ -20,22 +16,30 @@ const MAX_ASKED_TIMES = 4;
 const PART = 'सुबह|दोपहर|शाम|रात';
 /** A time as said: "7:30", "7 am", "6 p.m.", "शाम 6 बजे", "सुबह को 7:30"; groups: part, hour, minute, a/p, बजे. */
 const TIME = new RegExp(
-  String.raw`(?:(${PART})\s+(?:को\s+)?)?(?<![\d:.])(\d{1,2})(?::([0-5]\d))?`
-    + String.raw`(?:\s*([ap])\.?\s?m\b\.?|\s*(बजे))?(?![\d:])`,
+  String.raw`(?:(${PART})\s+(?:को\s+)?)?(?<![\d:.])(\d{1,2})(?::([0-5]\d))?` +
+    String.raw`(?:\s*([ap])\.?\s?m\b\.?|\s*(बजे))?(?![\d:])`,
   'giu',
 );
 
-/** 24-hour hour for an hour as said: with am/pm, a Hindi day part (शाम 6 = 18), or as written. */
+function fromAmPm(h: number, ampm: string): number | null {
+  if (h < 1 || h > 12) return null;
+  return (h % 12) + (ampm.toLowerCase() === 'p' ? 12 : 0);
+}
+
+/** A 1–12 hour after a Hindi day part: शाम 6 = 18, रात 2 = 02, रात 12 = 00. */
+function fromDayPart(h: number, part: string): number {
+  if (part === 'सुबह') return h % 12;
+  if (part === 'रात') {
+    if (h === 12) return 0;
+    return h >= 6 ? h + 12 : h;
+  }
+  return h === 12 ? 12 : h + 12; // दोपहर, शाम
+}
+
+/** 24-hour hour for an hour as said: with am/pm, a Hindi day part, or as written on the 24-hour clock. */
 function toHour(h: number, ampm: string | undefined, part: string | undefined): number | null {
-  if (ampm) {
-    if (h < 1 || h > 12) return null;
-    return (h % 12) + (ampm.toLowerCase() === 'p' ? 12 : 0);
-  }
-  if (part && h >= 1 && h <= 12) {
-    if (part === 'सुबह') return h % 12;
-    if (part === 'रात') return h === 12 ? 0 : h >= 6 ? h + 12 : h;
-    return h === 12 ? 12 : h + 12; // दोपहर, शाम
-  }
+  if (ampm) return fromAmPm(h, ampm);
+  if (part && h >= 1 && h <= 12) return fromDayPart(h, part);
   return h <= 23 ? h : null;
 }
 
@@ -105,10 +109,7 @@ const instant = (time: AskedTime, p: HourPoint): string => `${p.time.slice(0, 14
  * The forecast hours in the next 24 h a time covers, and the worst of them by US AQI: the conservative one to
  * judge. A clock time counts only from now on; a part of the day counts each hour that has not yet ended.
  */
-export function forecastAt(
-  time: AskedTime,
-  report: AirReport,
-): { points: HourPoint[]; worst: HourPoint | undefined } {
+export function forecastAt(time: AskedTime, report: AirReport): { points: HourPoint[]; worst: HourPoint | undefined } {
   const now = report.current.time.slice(0, 16);
   const horizon = addHours(now, 24);
   const span = time.hours.length > 1;
@@ -121,6 +122,16 @@ export function forecastAt(
   return { points, worst };
 }
 
+function trapFact(inside: boolean, trap: Span, now: string): string {
+  return `${inside ? 'INSIDE' : 'outside'} the smog trap (${spanText(trap, now)})`;
+}
+
+/** Where `at` stands against span `w`, compared on full date-times. */
+function relation(at: string, w: Span): 'INSIDE' | 'before' | 'after' {
+  if (within(at, w)) return 'INSIDE';
+  return w.start.slice(0, 16) > at.slice(0, 16) ? 'before' : 'after';
+}
+
 /** "Asked time 07:30 tomorrow: US AQI ≈ 98, …, INSIDE the smog trap (17:00 today to 10:00 tomorrow), …". */
 export function askedTimeFact(time: AskedTime, report: AirReport, plan: Plan, saidToday = false): string {
   const { points, worst } = forecastAt(time, report);
@@ -130,10 +141,10 @@ export function askedTimeFact(time: AskedTime, report: AirReport, plan: Plan, sa
   const inside = (w: Span | null): boolean => w !== null && points.some((p) => within(instant(time, p), w));
   const day = isLaterDay({ start: instant(time, worst) }, now) ? 'tomorrow' : 'today';
   const trap = plan.smogTrap;
+  const worstHour = points.length > 1 ? `worst hour ${formatHour(worst.time)}, ` : '';
   const parts = [
-    `${points.length > 1 ? `worst hour ${formatHour(worst.time)}, ` : ''}`
-      + `US AQI ≈ ${Math.round(worst.usAqi)}, PM2.5 ≈ ${Math.round(worst.pm25)} µg/m³`,
-    trap ? `${inside(trap) ? 'INSIDE' : 'outside'} the smog trap (${spanText(trap, now)})` : 'no smog trap forecast',
+    `${worstHour}US AQI ≈ ${Math.round(worst.usAqi)}, PM2.5 ≈ ${Math.round(worst.pm25)} µg/m³`,
+    trap ? trapFact(inside(trap), trap, now) : 'no smog trap forecast',
   ];
   const yesNo = (w: Span): string => `(${spanText(w, now)}): ${inside(w) ? 'yes' : 'no'}`;
   if (plan.worstWindow) parts.push(`inside the most polluted window ${yesNo(plan.worstWindow)}`);
@@ -152,12 +163,12 @@ export function nowFact(report: AirReport, plan: Pick<Plan, 'smogTrap' | 'worstW
   const now = report.current.time;
   const where = (name: string, w: Span | null): string => {
     if (!w) return '';
-    const state = within(now, w) ? 'INSIDE' : w.start.slice(0, 16) > now.slice(0, 16) ? 'before' : 'after';
-    return `${state} ${name} (${spanText(w, now)})`;
+    return `${relation(now, w)} ${name} (${spanText(w, now)})`;
   };
   const parts = [where('the smog trap', plan.smogTrap), where('the most polluted window', plan.worstWindow)];
   const said = parts.filter(Boolean);
-  return `Now (${formatHour(now)} today) is ${said.length > 0 ? said.join(' and ') : 'in no smog trap or polluted window'}.`;
+  const state = said.length > 0 ? said.join(' and ') : 'in no smog trap or polluted window';
+  return `Now (${formatHour(now)} today) is ${state}.`;
 }
 
 /** The question says the time is today: "today", "tonight", "this evening", "आज". */
@@ -167,11 +178,14 @@ const TODAY = /\btoday\b|\btonight\b|\bthis (morning|afternoon|evening)\b|आज
 export function askedTimeFacts(texts: readonly string[], report: AirReport, plan: Plan): string[] {
   const question = texts[0] ?? '';
   const saidToday = TODAY.test(question);
-  // The current question decides which times matter. Earlier questions' times are used only when it names none:
-  // "what about his evening walk?" is answered for the evening, not for the 7:30 asked before.
+  // Earlier questions' times count only when this one names none: "his evening walk?" is not the 7:30 asked before.
   const own = askedTimes(question);
-  const times = own.length > 0 ? own : (texts.slice(1).map(askedTimes).find((t) => t.length > 0) ?? []);
-  return times
-    .slice(0, MAX_ASKED_TIMES)
-    .map((t) => askedTimeFact(t, report, plan, saidToday));
+  const times =
+    own.length > 0
+      ? own
+      : (texts
+          .slice(1)
+          .map(askedTimes)
+          .find((t) => t.length > 0) ?? []);
+  return times.slice(0, MAX_ASKED_TIMES).map((t) => askedTimeFact(t, report, plan, saidToday));
 }

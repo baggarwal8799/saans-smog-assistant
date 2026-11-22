@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { buildPlan, hoursOutside } from '../recommend';
 import { mergeWeather } from '../weather';
 import { profile, report, weatherPayload } from '../../test/fixtures';
-import type { AirReport } from '../types';
-import { isIndia } from './shared';
+import type { AirReport, RecId } from '../types';
+import { isIndia } from './place';
 
 const ids = (plan: ReturnType<typeof buildPlan>) => plan.recommendations.map((r) => r.id);
-const rec = (plan: ReturnType<typeof buildPlan>, id: string) => plan.recommendations.find((r) => r.id === id);
+const rec = (plan: ReturnType<typeof buildPlan>, id: RecId) => plan.recommendations.find((r) => r.id === id);
 
 /** A report whose weather traps smog from `from` to `to` (local hours, may wrap past midnight). */
 function trappedReport(from: number, to: number, overrides: Parameters<typeof report>[0] = {}): AirReport {
@@ -21,9 +21,13 @@ function trappedReport(from: number, to: number, overrides: Parameters<typeof re
 
 describe('plan rules: factors, smog traps and timing', () => {
   it('calculates every percentage from a named factor (no hard-coded numbers)', () => {
-    const plan = buildPlan(report({ usAqi: 120 }), profile({ cooking: 'lpg', hasPurifier: true, hasElderly: true }), 'en');
-    const pct = (id: string) => plan.recommendations.find((r) => r.id === id)?.impact.exposureCutPct;
-    expect(pct('purifier-use')).toBeUndefined(); // the household already runs one: nothing to credit
+    const plan = buildPlan(
+      report({ usAqi: 120 }),
+      profile({ cooking: 'lpg', hasPurifier: true, hasElderly: true }),
+      'en',
+    );
+    const pct = (id: RecId) => plan.recommendations.find((r) => r.id === id)?.impact.exposureCutPct;
+    expect(pct('diy-purifier')).toBeUndefined(); // the household already runs one: nothing to credit
     expect(pct('kitchen-exhaust')).toBe(30); // RANGE_HOOD_CUT
     expect(pct('wet-clean')).toBe(10); // WET_CLEAN_CUT
     expect(pct('protect-vulnerable')).toBe(70); // outdoors → indoors with the household's own purifier (0.3)
@@ -100,6 +104,8 @@ describe('plan rules: factors, smog traps and timing', () => {
     const plan = buildPlan(trappedReport(8, 6, { usAqi: 120 }), profile(), 'en');
     expect(plan.smogTrap).not.toBeNull();
     if (plan.bestWindow) expect(plan.bestWindow.start < '2026-11-18T07:00').toBe(true);
-    expect(hoursOutside(trappedReport(8, 6).hourly.slice(1), [plan.smogTrap]).every((h) => h.time < '2026-11-18T07:00')).toBe(true);
+    expect(
+      hoursOutside(trappedReport(8, 6).hourly.slice(1), [plan.smogTrap]).every((h) => h.time < '2026-11-18T07:00'),
+    ).toBe(true);
   });
 });

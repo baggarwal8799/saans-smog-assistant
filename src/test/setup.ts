@@ -11,5 +11,6 @@ afterEach(() => {
   cleanup();
   // A model's quota cooldown is module state; each test starts with every model available.
   resetCooldowns();
-  globalThis.localStorage?.clear();
+  // Typed as always present, but absent in the node environment the server tests use.
+  (globalThis.localStorage as Storage | undefined)?.clear();
 });

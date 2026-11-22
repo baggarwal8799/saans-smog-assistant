@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { SYSTEM_INSTRUCTION, buildUserPrompt } from './prompt';
-import { body, ctx } from './test-helpers';
+import { body, ctx } from '../../src/test/apiHelpers';
 import { hourlyText } from '../../src/lib/context';
 import { report } from '../../src/test/fixtures';
 import { parseAssistantRequest } from './validate';
@@ -42,8 +42,9 @@ describe('prompt', () => {
   });
 
   it('describes each JSON field the schema asks for, and the EPA meaning of "Unhealthy"', () => {
-    expect(buildUserPrompt(parseAssistantRequest(body()), ctx()))
-      .toMatch(/^US EPA guidance for Very unhealthy air \(US AQI 201–300\): /m);
+    expect(buildUserPrompt(parseAssistantRequest(body()), ctx())).toMatch(
+      /^US EPA guidance for Very unhealthy air \(US AQI 201–300\): /m,
+    );
     expect(SYSTEM_INSTRUCTION).toMatch(/^Reply with one JSON object/m);
     expect(SYSTEM_INSTRUCTION).toMatch(/^- reply: "yes", "no" or "only_if" for a yes\/no question, otherwise "none"/m);
     expect(SYSTEM_INSTRUCTION).toMatch(/itself, so never start a line with it/);
@@ -67,7 +68,9 @@ describe('prompt', () => {
     expect(context).toMatch(/^Now \(06:00 today\) is /m);
     expect(context).toMatch(/^Hours fit for outdoor activity for this household \(.*\): .+\.$/m);
     expect(context).toContain('shut windows keep outdoor smoke out.');
-    expect(SYSTEM_INSTRUCTION).toMatch(/Suggest a time to go out ONLY from the "Hours fit for outdoor activity" line, never from when the smog trap or the most polluted window ends/);
+    expect(SYSTEM_INSTRUCTION).toMatch(
+      /Suggest a time to go out ONLY from the "Hours fit for outdoor activity" line, never from when the smog trap or the most polluted window ends/,
+    );
     expect(SYSTEM_INSTRUCTION).toMatch(/only when the "Now" line says INSIDE/);
     expect(SYSTEM_INSTRUCTION).toMatch(/with its reading time/);
     expect(SYSTEM_INSTRUCTION).toMatch(/shutting windows keeps outdoor smoke out/);
@@ -133,28 +136,38 @@ describe('prompt', () => {
     expect(none).not.toMatch(/^Do these first:$/m);
   });
 
-  it(
-    'names only the plan groups and totals that exist, never an empty heading or a "0 kg CO₂" total',
-    () => {
-      const c = ctx();
-      const summary = parseAssistantRequest(body());
-      const taskOf = (x: typeof c): string => buildUserPrompt(summary, x).split('\n')[1] ?? '';
-      const headings = { safety: 'Safety first', first: 'Do these first', more: 'More ways to help' } as const;
-      for (const keep of [['safety'], ['first'], ['more'], ['first', 'more'], ['safety', 'first', 'more']] as const) {
-        const recommendations = keep.map((group) => ({ title: 'Shut the windows', impact: 'Less smoke', group }));
-        const x = { ...c, recommendations };
-        for (const [group, heading] of Object.entries(headings)) {
-          expect(taskOf(x).includes(heading)).toBe((keep as readonly string[]).includes(group));
-        }
+  it('names only the plan groups and totals that exist, never an empty heading or a "0 kg CO₂" total', () => {
+    const c = ctx();
+    const summary = parseAssistantRequest(body());
+    const taskOf = (x: typeof c): string => buildUserPrompt(summary, x).split('\n')[1] ?? '';
+    const headings = { safety: 'Safety first', first: 'Do these first', more: 'More ways to help' } as const;
+    for (const keep of [['safety'], ['first'], ['more'], ['first', 'more'], ['safety', 'first', 'more']] as const) {
+      const recommendations = keep.map((group) => ({ title: 'Shut the windows', impact: 'Less smoke', group }));
+      const x = { ...c, recommendations };
+      for (const [group, heading] of Object.entries(headings)) {
+        expect(taskOf(x).includes(heading)).toBe((keep as readonly string[]).includes(group));
       }
-      const noTotals = { ...c };
-      delete noTotals.doseCutPct;
-      delete noTotals.co2KgPerMonth;
-      expect(taskOf(noTotals)).not.toMatch(/combined impact/);
-      expect(buildUserPrompt(summary, noTotals)).not.toMatch(/Following the full plan/);
-      const co2Only = buildUserPrompt(summary, { ...noTotals, co2KgPerMonth: 12 });
-      expect(co2Only).toMatch(/^Following the full plan: 12 kg CO₂ avoided per month\.$/m);
-      expect(taskOf({ ...noTotals, co2KgPerMonth: 12 })).toMatch(/then the combined impact/);
-    },
-  );
+    }
+    const noTotals = { ...c };
+    delete noTotals.doseCutPct;
+    delete noTotals.co2KgPerMonth;
+    expect(taskOf(noTotals)).not.toMatch(/combined impact/);
+    expect(buildUserPrompt(summary, noTotals)).not.toMatch(/Following the full plan/);
+    const co2Only = buildUserPrompt(summary, { ...noTotals, co2KgPerMonth: 12 });
+    expect(co2Only).toMatch(/^Following the full plan: 12 kg CO₂ avoided per month\.$/m);
+    expect(taskOf({ ...noTotals, co2KgPerMonth: 12 })).toMatch(/then the combined impact/);
+  });
+
+  it('keeps a title that already ends a sentence, and names absent windows and EPA band plainly', () => {
+    const c = { ...ctx(), bestWindow: '', worstWindow: '' };
+    const band = String(c.epaBand);
+    delete c.epaBand;
+    c.recommendations = [{ title: 'Shut the windows!', impact: 'Less smoke', group: 'first' }];
+    const p = buildUserPrompt(parseAssistantRequest(body()), c);
+    expect(p).toContain('1. Shut the windows! Impact: Less smoke.');
+    expect(p).toContain('Cleanest 2 h window: none today');
+    expect(p).toContain('Most polluted 2 h window: unknown');
+    expect(band.length).toBeGreaterThan(0);
+    expect(p).not.toContain(band);
+  });
 });

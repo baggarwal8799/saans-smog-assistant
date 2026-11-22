@@ -9,7 +9,7 @@ interface Props {
 
 const CATEGORIES: readonly RecCategory[] = ['routine', 'indoor', 'swap', 'community'];
 
-function ImpactChips({ lang, rec }: { lang: Lang; rec: Recommendation }) {
+function ImpactChips({ lang, rec }: Readonly<{ lang: Lang; rec: Recommendation }>) {
   return (
     <span className="chips">
       <span className="visually-hidden">{t(lang, 'impact')}: </span>
@@ -23,7 +23,7 @@ function ImpactChips({ lang, rec }: { lang: Lang; rec: Recommendation }) {
 }
 
 /** One of the top three actions: full text visible, the working one tap away. */
-function Step({ lang, rec }: { lang: Lang; rec: Recommendation }) {
+function Step({ lang, rec }: Readonly<{ lang: Lang; rec: Recommendation }>) {
   return (
     <li className="step">
       <article aria-labelledby={`rec-${rec.id}`}>
@@ -47,7 +47,7 @@ function Step({ lang, rec }: { lang: Lang; rec: Recommendation }) {
 }
 
 /** Everything else: one line with its impact, expanding to the detail and the working. */
-function Row({ lang, rec }: { lang: Lang; rec: Recommendation }) {
+function Row({ lang, rec }: Readonly<{ lang: Lang; rec: Recommendation }>) {
   return (
     <li className="row-item">
       <details>
@@ -71,7 +71,13 @@ function Row({ lang, rec }: { lang: Lang; rec: Recommendation }) {
 const STEP_HEADINGS = { safety: 'safetyHeading', first: 'doFirstHeading' } as const;
 
 /** A numbered group of full steps: "Safety first" and "Do these first" share it. */
-function Steps({ lang, kind, recs }: { lang: Lang; kind: keyof typeof STEP_HEADINGS; recs: readonly Recommendation[] }) {
+interface StepsProps {
+  lang: Lang;
+  kind: keyof typeof STEP_HEADINGS;
+  recs: readonly Recommendation[];
+}
+
+function Steps({ lang, kind, recs }: Readonly<StepsProps>) {
   if (recs.length === 0) return null;
   return (
     <section aria-labelledby={`${kind}-heading`} className={`steps ${kind}`}>
@@ -85,7 +91,7 @@ function Steps({ lang, kind, recs }: { lang: Lang; kind: keyof typeof STEP_HEADI
   );
 }
 
-function DoseBars({ lang, plan }: Props) {
+function DoseBars({ lang, plan }: Readonly<Props>) {
   const { baselineUg, withPlanUg, people } = plan.dose;
   const each = baselineUg - withPlanUg;
   const width = (v: number) => `${Math.max(3, Math.round((v / Math.max(baselineUg, 1)) * 100))}%`;
@@ -111,13 +117,19 @@ function DoseBars({ lang, plan }: Props) {
       </dl>
       <p className="dose-cut">{doseHeadline(plan, lang)}</p>
       {people > 1 && each > 0 && (
-        <p className="note">{t(lang, 'doseHousehold', { people: tn(lang, 'peopleCount', people), each: formatNumber(lang, each), total: formatNumber(lang, people * each) })}</p>
+        <p className="note">
+          {t(lang, 'doseHousehold', {
+            people: tn(lang, 'peopleCount', people),
+            each: formatNumber(lang, each),
+            total: formatNumber(lang, people * each),
+          })}
+        </p>
       )}
     </div>
   );
 }
 
-export function PlanView({ lang, plan }: Props) {
+export function PlanView({ lang, plan }: Readonly<Props>) {
   // Life-safety items get their own group, so they never take a "Do these first" slot.
   const safety = plan.recommendations.filter((r) => r.safety);
   const urgent = plan.recommendations.filter((r) => !r.safety && r.priority === 1);

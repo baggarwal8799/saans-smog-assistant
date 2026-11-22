@@ -1,11 +1,24 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { profile } from '../../src/test/fixtures';
-import { ANSWER_SCHEMA, MAX_LINES, REFUSAL_TEXT, parseAnswer, renderAnswer, withoutReplyWord, type ModelAnswer } from './answer';
+import {
+  ANSWER_SCHEMA,
+  MAX_LINES,
+  REFUSAL_TEXT,
+  parseAnswer,
+  renderAnswer,
+  withoutReplyWord,
+  type ModelAnswer,
+} from './answer';
 import { MEDICAL_LINE } from './medical';
-import { ask, summary } from './test-helpers';
+import { ask, summary } from '../../src/test/apiHelpers';
 
-const said = (o: Partial<ModelAnswer>): ModelAnswer => ({ offTopic: false, reply: 'none', lines: ['Keep the windows shut.'], ...o });
+const said = (o: Partial<ModelAnswer>): ModelAnswer => ({
+  offTopic: false,
+  reply: 'none',
+  lines: ['Keep the windows shut.'],
+  ...o,
+});
 
 describe('answer schema', () => {
   it('asks for exactly the three typed fields, with the reply as an enum and 1–6 lines', () => {
@@ -17,8 +30,11 @@ describe('answer schema', () => {
 
 describe('parseAnswer', () => {
   it('reads a reply that fits the schema', () => {
-    expect(parseAnswer('{"offTopic":false,"reply":"no","lines":["Keep them in."]}'))
-      .toEqual({ offTopic: false, reply: 'no', lines: ['Keep them in.'] });
+    expect(parseAnswer('{"offTopic":false,"reply":"no","lines":["Keep them in."]}')).toEqual({
+      offTopic: false,
+      reply: 'no',
+      lines: ['Keep them in.'],
+    });
   });
 
   it('rejects broken JSON (a reply cut off by the token limit) and anything off the schema', () => {
@@ -35,7 +51,7 @@ describe('parseAnswer', () => {
     }
   });
 
-  it('owns the bullets: drops a line\'s own bullet and line breaks, empty lines, and lines past the limit', () => {
+  it("owns the bullets: drops a line's own bullet and line breaks, empty lines, and lines past the limit", () => {
     const json = JSON.stringify({
       offTopic: false,
       reply: 'none',
@@ -53,17 +69,22 @@ describe('renderAnswer', () => {
   it('opens the first line with the reply word, and turns later lines into bullets', () => {
     const answer = said({ reply: 'no', lines: ['Keep them indoors this evening.', 'Run the purifier.'] });
     expect(renderAnswer(answer, kids)).toBe('No. Keep them indoors this evening.\n• Run the purifier.');
-    expect(renderAnswer(said({ reply: 'only_if', lines: ['they stay in until 14:00.'] }), kids))
-      .toBe('Only if they stay in until 14:00.');
-    expect(renderAnswer(said({ reply: 'yes' }), ask('क्या बच्चे बाहर खेल सकते हैं?', { lang: 'hi' })))
-      .toBe('हाँ। Keep the windows shut.');
+    expect(renderAnswer(said({ reply: 'only_if', lines: ['they stay in until 14:00.'] }), kids)).toBe(
+      'Only if they stay in until 14:00.',
+    );
+    expect(renderAnswer(said({ reply: 'yes' }), ask('क्या बच्चे बाहर खेल सकते हैं?', { lang: 'hi' }))).toBe(
+      'हाँ। Keep the windows shut.',
+    );
   });
 
-  it('takes the word from the server\'s EPA verdict, never the model, whenever there is one', () => {
+  it("takes the word from the server's EPA verdict, never the model, whenever there is one", () => {
     expect(renderAnswer(said({ reply: 'yes' }), kids, 'no')).toBe('No. Keep the windows shut.');
     // An "only if" condition never runs on from a different word ("No. they wear N95s." read as nonsense).
-    expect(renderAnswer(said({ reply: 'only_if', lines: ['they wear N95s.', 'Play indoors instead.'] }), kids, 'no'))
-      .toBe('No. Play indoors instead.');
+    expect(
+      renderAnswer(said({ reply: 'only_if', lines: ['they wear N95s.', 'Play indoors instead.'] }), kids, 'no'),
+    ).toBe('No. Play indoors instead.');
+    // A lone "only if" condition under a different word leaves the word on its own.
+    expect(renderAnswer(said({ reply: 'only_if', lines: ['they wear N95s.'] }), kids, 'no')).toBe('No.');
     // "none" is the model saying this is not a yes/no question ("When can they play?"): no word is added.
     expect(renderAnswer(said({ reply: 'none' }), kids, 'no')).toBe('Keep the windows shut.');
   });
@@ -92,7 +113,7 @@ describe('withoutReplyWord', () => {
     ['Only if they wear N95s.', 'only_if', 'en', 'they wear N95s.'],
     ['नहीं, बच्चों को घर में रखें।', 'no', 'hi', 'बच्चों को घर में रखें।'],
     ['सिर्फ़ अगर वे N95 पहनें।', 'only_if', 'hi', 'वे N95 पहनें।'],
-  ] as const)('drops the model\'s copy of the word the server writes: %s', (lead, reply, lang, want) => {
+  ] as const)("drops the model's copy of the word the server writes: %s", (lead, reply, lang, want) => {
     expect(withoutReplyWord(lead, reply, lang)).toBe(want);
   });
 
@@ -119,6 +140,6 @@ describe('a breathing emergency', () => {
     const q = ask('My son is wheezing badly and struggling to breathe, should I just run the air purifier?');
     const out = renderAnswer({ offTopic: false, reply: 'yes', lines: ['Run the purifier on high.'] }, q, 'no');
     expect(out.startsWith(MEDICAL_LINE.en)).toBe(true);
-    expect(out).not.toMatch(/^(Yes|No)\b|\n(Yes|No)\./);
+    expect(out).not.toMatch(/(?:^(Yes|No)\b)|(?:\n(Yes|No)\.)/);
   });
 });

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { clearAirCache } from '../../src/lib/aqi';
 import { handleAssistant, resetAssistantState } from './assistant';
 import { safetyLines } from './medical';
-import { body, gemini, post, quietLog, replies, sentPrompt, textOf as text, withAir } from './test-helpers';
+import { body, gemini, post, quietLog, replies, sentPrompt, textOf as text, withAir } from '../../src/test/apiHelpers';
 import { parseAssistantRequest } from './validate';
 
 const env = { GEMINI_API_KEY: 'k' };
@@ -17,23 +17,23 @@ beforeEach(() => {
 });
 
 describe('handleAssistant: facts computed by the server', () => {
-  it(
-    'puts a fact line for each time the question asks about into CONTEXT, falling back to earlier questions',
-    async () => {
-      // Fixture: local time 06:00, smog trap 18:00–07:00.
-      const facts = async (question: string, history: string[]): Promise<string[]> => {
-        const f = gemini('No. Stay in.');
-        await handleAssistant(post(body({ mode: 'question', question, history })), env, withAir(f), quietLog);
-        return block(sentPrompt(f), 'CONTEXT').split('\n').filter((l) => l.startsWith('Asked time'));
-      };
-      const own = await facts('And at शाम 6 बजे?', ['Is 7:30 ok for the school bus?']);
-      expect(own).toHaveLength(1);
-      expect(own[0])
-        .toMatch(/^Asked time 18:00 today: US AQI ≈ \d+, PM2\.5 ≈ \d+ µg\/m³, INSIDE the smog trap \(18:00 today to 07:00 tomorrow\)/);
-      const earlier = await facts('And for my father?', ['Is 7:30 ok for the school bus?']);
-      expect(earlier[0]).toMatch(/^Asked time 07:30 today: .*outside the smog trap/);
-    },
-  );
+  it('puts a fact line for each time the question asks about into CONTEXT, falling back to earlier questions', async () => {
+    // Fixture: local time 06:00, smog trap 18:00–07:00.
+    const facts = async (question: string, history: string[]): Promise<string[]> => {
+      const f = gemini('No. Stay in.');
+      await handleAssistant(post(body({ mode: 'question', question, history })), env, withAir(f), quietLog);
+      return block(sentPrompt(f), 'CONTEXT')
+        .split('\n')
+        .filter((l) => l.startsWith('Asked time'));
+    };
+    const own = await facts('And at शाम 6 बजे?', ['Is 7:30 ok for the school bus?']);
+    expect(own).toHaveLength(1);
+    expect(own[0]).toMatch(
+      /^Asked time 18:00 today: US AQI ≈ \d+, PM2\.5 ≈ \d+ µg\/m³, INSIDE the smog trap \(18:00 today to 07:00 tomorrow\)/,
+    );
+    const earlier = await facts('And for my father?', ['Is 7:30 ok for the school bus?']);
+    expect(earlier[0]).toMatch(/^Asked time 07:30 today: .*outside the smog trap/);
+  });
 
   it('appends the fixed medical line to a follow-up about a father with asthma (seen missing live)', async () => {
     const f = gemini('Keep him indoors until the cleanest window.');
@@ -44,8 +44,9 @@ describe('handleAssistant: facts computed by the server', () => {
     });
     const res = await handleAssistant(post(req), env, withAir(f), quietLog);
     const out = await text(res);
-    expect(out)
-      .toBe(['Keep him indoors until the cleanest window.', ...safetyLines(parseAssistantRequest(req))].join('\n'));
+    expect(out).toBe(
+      ['Keep him indoors until the cleanest window.', ...safetyLines(parseAssistantRequest(req))].join('\n'),
+    );
     expect(out).toMatch(/reliever inhaler[\s\S]*get medical help at once/);
   });
 
@@ -73,8 +74,9 @@ describe('handleAssistant: per-client daily cap', () => {
   it('counts a request with a repair retry once, and serves cache hits without counting', async () => {
     const f = replies('The AQI is 999.', 'Keep the windows shut.');
     const net = withAir(f);
-    expect(await text(await handleAssistant(ask('What now?', '3.3.3.3'), capped, net, quietLog)))
-      .toBe('Keep the windows shut.');
+    expect(await text(await handleAssistant(ask('What now?', '3.3.3.3'), capped, net, quietLog))).toBe(
+      'Keep the windows shut.',
+    );
     expect(f).toHaveBeenCalledTimes(2); // answer + repair
     expect((await handleAssistant(ask('What now?', '3.3.3.3'), capped, net, quietLog)).status).toBe(200); // cache hit
     const secondRequest = await handleAssistant(ask('What later?', '3.3.3.3'), capped, net, quietLog);

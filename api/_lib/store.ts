@@ -3,6 +3,7 @@
  * serverless instance counts on its own. With UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN set, they live in
  * Upstash Redis (its REST API over plain fetch), so every instance shares one count.
  */
+import type { Logger } from './log.js';
 export interface CounterStore {
   /** Adds `by` (default 1) to `key` and returns the new count. The first write sets the TTL; later writes keep it. */
   incr(key: string, ttlSeconds: number, by?: number): Promise<number>;
@@ -32,8 +33,8 @@ export class MemoryStore implements CounterStore {
     this.counts.set(key, entry);
     // Bounded memory: forget the oldest key. It can only gain that key a fresh count, never block anyone.
     if (this.counts.size > this.maxKeys) {
-      const oldest = this.counts.keys().next().value;
-      if (oldest !== undefined) this.counts.delete(oldest);
+      // Never undefined: the map holds more than maxKeys keys here.
+      this.counts.delete(this.counts.keys().next().value as string);
     }
     return Promise.resolve(entry.n);
   }
@@ -57,13 +58,18 @@ export class UpstashStore implements CounterStore {
     private readonly token: string,
     private readonly fetchImpl: typeof fetch = fetch,
   ) {
-    this.url = url.replace(/\/+$/, '');
+    let end = url.length;
+    while (end > 0 && url[end - 1] === '/') end--; // trailing slashes, without a backtracking regex
+    this.url = url.slice(0, end);
   }
 
   async incr(key: string, ttlSeconds: number, by = 1): Promise<number> {
     const add = by === 1 ? ['INCR', key] : ['INCRBY', key, String(by)];
     const abort = new AbortController();
-    const timer = setTimeout(() => abort.abort(new DOMException('Upstash timed out', 'TimeoutError')), UPSTASH_TIMEOUT_MS);
+    const timer = setTimeout(
+      () => abort.abort(new DOMException('Upstash timed out', 'TimeoutError')),
+      UPSTASH_TIMEOUT_MS,
+    );
     try {
       const res = await this.fetchImpl(`${this.url}/pipeline`, {
         method: 'POST',
@@ -91,7 +97,7 @@ export function sharedStore(env: StoreEnv, fetchImpl: typeof fetch = fetch): Cou
 }
 
 /** Uses `primary`, and on any error logs one line and counts in `fallback` instead. */
-export function withFallback(primary: CounterStore, fallback: CounterStore, log: Pick<Console, 'warn'>): CounterStore {
+export function withFallback(primary: CounterStore, fallback: CounterStore, log: Logger): CounterStore {
   return {
     async incr(key, ttlSeconds, by) {
       try {

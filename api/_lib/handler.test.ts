@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearAirCache } from '../../src/lib/aqi';
 import { profile } from '../../src/test/fixtures';
 import { handleAssistant, resetAssistantState } from './assistant';
-import { body, gemini, post, quietLog, withAir } from './test-helpers';
+import { body, gemini, post, quietLog, withAir } from '../../src/test/apiHelpers';
 
 beforeEach(() => {
   resetAssistantState();
@@ -18,6 +18,23 @@ describe('handleAssistant', () => {
     expect((await handleAssistant(post('{bad'), {})).status).toBe(400);
     expect((await handleAssistant(post(body({ lang: 'xx' })), {})).status).toBe(400);
     expect((await handleAssistant(post('"' + 'x'.repeat(15_100) + '"'), {})).status).toBe(413);
+  });
+
+  it('answers every refusal with a code from the contract, never English text', async () => {
+    const cases: [Request, number, string][] = [
+      [new Request('http://x/api', { method: 'GET' }), 405, 'method_not_allowed'],
+      [post('x', { 'content-type': 'text/plain' }), 415, 'unsupported_media_type'],
+      [post(body(), { 'sec-fetch-site': 'cross-site' }), 403, 'forbidden_origin'],
+      [post(body(), { 'content-length': '99999' }), 413, 'too_large'],
+      [post('"' + 'x'.repeat(15_100) + '"'), 413, 'too_large'],
+      [post('{bad'), 400, 'invalid_request'],
+      [post(body({ lang: 'xx' })), 400, 'invalid_request'],
+    ];
+    for (const [request, status, code] of cases) {
+      const res = await handleAssistant(request, {}, fetch, quietLog);
+      expect(res.status, code).toBe(status);
+      expect(await res.json()).toEqual({ error: code });
+    }
   });
 
   it('accepts only the exact JSON media type, never one that merely contains it', async () => {
@@ -46,7 +63,7 @@ describe('handleAssistant', () => {
     });
     const res = await handleAssistant(bare, { GEMINI_API_KEY: 'k' }, vi.fn());
     expect(res.status).toBe(403);
-    expect(await res.json()).toEqual({ error: 'Only same-origin requests are allowed' });
+    expect(await res.json()).toEqual({ error: 'forbidden_origin' });
   });
 
   it('answers "not configured" when no Gemini key is set, without calling anything', async () => {
@@ -98,6 +115,18 @@ describe('handleAssistant', () => {
     const res = await handleAssistant(post(body()), { GEMINI_API_KEY: 'k' }, f, quietLog);
     expect(res.status).toBe(502);
     expect(f.mock.calls.some((c) => String(c[0]).includes('generativelanguage'))).toBe(false);
+  });
+
+  it('logs "unknown" and answers "unavailable" when air or Gemini fail with something that is not an Error', async () => {
+    const env = { GEMINI_API_KEY: 'k' };
+    const noAir = vi.fn<typeof fetch>().mockRejectedValue('offline');
+    expect((await handleAssistant(post(body()), env, noAir, quietLog)).status).toBe(502);
+    expect(quietLog.warn).toHaveBeenCalledWith('assistant: air data unavailable', 'unknown');
+    const noModel = withAir(vi.fn<typeof fetch>().mockRejectedValue('connection reset'));
+    expect(await (await handleAssistant(post(body()), env, noModel, quietLog)).json()).toEqual({
+      error: 'ai_unavailable',
+    });
+    expect(quietLog.warn).toHaveBeenCalledWith('assistant: no answer', 'unknown');
   });
 
   it('reports the free-tier limit as "rate limited" and never leaks upstream text', async () => {

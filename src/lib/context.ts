@@ -3,8 +3,7 @@
  * place and household, so every number the model sees comes from this code, never from the request body.
  * (Relative imports use .js suffixes so the Vercel Node runtime can load these files directly.)
  */
-import type { AssistantContext } from '../../api/_lib/contract.js';
-import { LIMITS } from '../../api/_lib/contract.js';
+import { LIMITS, type AssistantContext, type AssistantRec } from './contract.js';
 import { aqiLevel } from './aqi.js';
 import { formatHour, spanText } from './windows.js';
 import { askedTimeFacts, nowFact } from './askedTimes.js';
@@ -34,20 +33,36 @@ export function hourlyText(report: AirReport, now: string): string {
     .join(', ');
 }
 
-export function householdSummary(p: Profile, lang: Lang): string {
+/**
+ * The household in English whatever the reply language: its labels are English like the rest of the prompt's
+ * facts, and Hindi values under English labels read as a mixed-script line the model then copied.
+ */
+export function householdSummary(p: Profile): string {
+  const commute = t('en', commuteKey(p.commuteMode));
   const parts = [
     `${p.householdSize} people`,
     p.hasChildren ? 'children' : '',
     p.hasElderly ? 'elderly' : '',
     p.hasRespiratory ? 'someone with a heart/lung condition' : '',
-    p.commuteMode === 'wfh' ? 'works from home' : `commute ${t(lang, commuteKey(p.commuteMode))} ${p.commuteKm} km one-way`,
+    p.commuteMode === 'wfh' ? 'works from home' : `commute ${commute} ${p.commuteKm} km one-way`,
     `outdoor exercise ${p.exerciseMinutes} min/day`,
-    `cooking ${t(lang, cookingKey(p.cooking))}`,
-    `heating ${t(lang, heatingKey(p.heating))}`,
+    `cooking ${t('en', cookingKey(p.cooking))}`,
+    `heating ${t('en', heatingKey(p.heating))}`,
     p.hasPurifier ? 'has purifier' : 'no purifier',
     p.burnsWaste ? 'waste or leaves burned nearby' : '',
   ];
   return parts.filter(Boolean).join(', ').slice(0, LIMITS.longText);
+}
+
+function trapText(trap: NonNullable<Plan['smogTrap']>, now: string): string {
+  const wind = weatherFigure('wind', trap.avgWindKmh).en;
+  const mixing = weatherFigure('mixing', trap.minMixingM).en;
+  return `${spanText(trap, now)}: wind ${wind}, mixing layer ${mixing}, so smoke stays near the ground`;
+}
+
+function recGroup(r: Plan['recommendations'][number]): AssistantRec['group'] {
+  if (r.safety) return 'safety';
+  return r.priority === 1 ? 'first' : 'more';
 }
 
 function impactText(r: Plan['recommendations'][number], lang: Lang): string {
@@ -56,8 +71,16 @@ function impactText(r: Plan['recommendations'][number], lang: Lang): string {
   return (bits.join('; ') || r.impact.explanation).slice(0, LIMITS.longText);
 }
 
-/** `said` is the user's own words (question and earlier questions): only the times in it are used, as computed facts. */
-export function buildContext(report: AirReport, profile: Profile, plan: Plan, lang: Lang, said: readonly string[] = []): AssistantContext {
+/** `said` is the user's own questions: only the times in it are used, as computed facts. */
+export interface ContextInput {
+  report: AirReport;
+  profile: Profile;
+  plan: Plan;
+  lang: Lang;
+  said?: readonly string[];
+}
+
+export function buildContext({ report, profile, plan, lang, said = [] }: ContextInput): AssistantContext {
   const now = report.current.time;
   const trap = plan.smogTrap;
   const outdoor = outdoorFacts(said[0] ?? '', report, profile, lang);
@@ -72,20 +95,18 @@ export function buildContext(report: AirReport, profile: Profile, plan: Plan, la
     ...(band ? { epaBand: band } : {}),
     bestWindow: windowText(plan.bestWindow, now),
     worstWindow: windowText(plan.worstWindow, now),
-    smogTrap: trap
-      ? `${spanText(trap, now)}: wind ${weatherFigure('wind', trap.avgWindKmh).en}, mixing layer ${weatherFigure('mixing', trap.minMixingM).en}, so smoke stays near the ground`
-      : 'none expected in the next 24 h',
+    smogTrap: trap ? trapText(trap, now) : 'none expected in the next 24 h',
     now: nowFact(report, plan),
     outdoorHours: outdoorHoursFact(report, profile, said[0] ?? ''),
     hourly: hourlyText(report, now),
     askedTimes: [...askedTimeFacts(said, report, plan), ...outdoor.lines],
     ...(outdoor.reply ? { epaReply: outdoor.reply } : {}),
-    household: householdSummary(profile, lang),
+    household: householdSummary(profile),
     recommendations: plan.recommendations.slice(0, LIMITS.recs).map((r) => ({
       title: r.title.slice(0, LIMITS.longText),
       impact: impactText(r, lang),
       // The same split PlanView shows, so the summary's top actions are exactly the screen's "Do these first".
-      group: r.safety ? 'safety' : r.priority === 1 ? 'first' : 'more',
+      group: recGroup(r),
     })),
     // A zero total is left out, not sent, so the model never writes "0 kg CO₂ avoided".
     ...(plan.dose.cutPct ? { doseCutPct: plan.dose.cutPct } : {}),

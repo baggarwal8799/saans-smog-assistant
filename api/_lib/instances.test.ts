@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
-import { REDIS_URL, fakeRedis, redisEnv } from './fake-redis';
-import { body, gemini, post, quietLog, withAir } from './test-helpers';
+import { REDIS_URL, fakeRedis, redisEnv } from '../../src/test/fakeRedis';
+import { body, gemini, post, quietLog, withAir } from '../../src/test/apiHelpers';
 
 /** A fresh copy of the handler module: what a new serverless instance (a cold start) runs, with empty memory. */
 async function instance() {

@@ -2,7 +2,7 @@ import { configure, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
-import { AUTO_SUMMARY_DELAY_MS } from './components/Assistant';
+import { AUTO_SUMMARY_DELAY_MS } from './hooks/useAssistant';
 import { clearAirCache } from './lib/aqi';
 import { PLACE_KEY } from './lib/profile';
 import { DELHI, jsonResponse, openMeteoPayload } from './test/fixtures';
@@ -57,7 +57,10 @@ describe('App: Ask Saans', () => {
     await user.type(screen.getByLabelText('Your question'), 'And for my father?');
     await user.click(ask);
     await waitFor(() => expect(assistantCalls()).toBe(5));
-    const sent = vi.mocked(fetch).mock.calls.filter((c) => String(c[0]) === '/api/assistant').map((c) => JSON.parse(String(c[1]?.body)));
+    const sent = vi
+      .mocked(fetch)
+      .mock.calls.filter((c) => String(c[0]) === '/api/assistant')
+      .map((c) => JSON.parse(String(c[1]?.body)));
     expect(sent.map((b) => b.mode)).toEqual(['summary', 'summary', 'summary', 'question', 'question']);
     // The household change started a fresh conversation, and a summary request is never sent as a question…
     expect(sent[3].history).toEqual([]);
@@ -72,17 +75,20 @@ describe('App: Ask Saans', () => {
     ['error', /could not answer/],
     ['too_many_requests', /lot of questions in one minute/],
     ['daily_limit', /come back tomorrow/],
-  ] as const)('explains a %s assistant failure in plain words, on the automatic summary and on a re-ask', async (mode, message) => {
-    const user = userEvent.setup();
-    localStorage.setItem(PLACE_KEY, JSON.stringify(DELHI));
-    mockNetwork({ assistant: mode });
-    render(<App />);
-    await screen.findByRole('heading', { name: /Air right now/ });
-    expect(await screen.findByRole('alert')).toHaveTextContent(message);
-    await user.click(await screen.findByRole('button', { name: /Explain my plan/ }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(message);
-    expect(screen.queryByRole('figure', { name: /Personal summary|Answer/ })).not.toBeInTheDocument();
-  });
+  ] as const)(
+    'explains a %s assistant failure in plain words, on the automatic summary and on a re-ask',
+    async (mode, message) => {
+      const user = userEvent.setup();
+      localStorage.setItem(PLACE_KEY, JSON.stringify(DELHI));
+      mockNetwork({ assistant: mode });
+      render(<App />);
+      await screen.findByRole('heading', { name: /Air right now/ });
+      expect(await screen.findByRole('alert')).toHaveTextContent(message);
+      await user.click(await screen.findByRole('button', { name: /Explain my plan/ }));
+      expect(await screen.findByRole('alert')).toHaveTextContent(message);
+      expect(screen.queryByRole('figure', { name: /Personal summary|Answer/ })).not.toBeInTheDocument();
+    },
+  );
 
   it('shows skeletons while air data and an answer are loading, then replaces them', async () => {
     localStorage.setItem(PLACE_KEY, JSON.stringify(DELHI));

@@ -28,30 +28,52 @@ interface Band {
 export const EPA_BANDS: Readonly<Record<AqiLevel, Band>> = {
   good: { name: 'Good', range: '0–50', caution: '', sensitive: 'fine', everyone: 'fine', avoidAll: 'nobody' },
   moderate: {
-    name: 'Moderate', range: '51–100', sensitive: 'fine', everyone: 'fine', avoidAll: 'nobody',
+    name: 'Moderate',
+    range: '51–100',
+    sensitive: 'fine',
+    everyone: 'fine',
+    avoidAll: 'nobody',
     caution: 'unusually sensitive people should consider reducing prolonged or heavy exertion outdoors',
   },
   sensitive: {
-    name: 'Unhealthy for sensitive groups', range: '101–150', sensitive: 'reduce', everyone: 'fine', avoidAll: 'nobody',
+    name: 'Unhealthy for sensitive groups',
+    range: '101–150',
+    sensitive: 'reduce',
+    everyone: 'fine',
+    avoidAll: 'nobody',
     caution: 'sensitive groups should reduce prolonged or heavy exertion outdoors',
   },
   unhealthy: {
-    name: 'Unhealthy', range: '151–200', sensitive: 'avoid', everyone: 'reduce', avoidAll: 'nobody',
+    name: 'Unhealthy',
+    range: '151–200',
+    sensitive: 'avoid',
+    everyone: 'reduce',
+    avoidAll: 'nobody',
     caution: 'sensitive groups should avoid prolonged or heavy exertion outdoors; everyone else should reduce it',
   },
   veryUnhealthy: {
-    name: 'Very unhealthy', range: '201–300', sensitive: 'avoid', everyone: 'avoid', avoidAll: 'sensitive',
-    caution: 'sensitive groups should avoid all physical activity outdoors; everyone else should avoid prolonged or heavy exertion',
+    name: 'Very unhealthy',
+    range: '201–300',
+    sensitive: 'avoid',
+    everyone: 'avoid',
+    avoidAll: 'sensitive',
+    caution:
+      'sensitive groups should avoid all physical activity outdoors; everyone else should avoid prolonged or heavy exertion',
   },
   hazardous: {
-    name: 'Hazardous', range: '301+', sensitive: 'avoid', everyone: 'avoid', avoidAll: 'everyone',
+    name: 'Hazardous',
+    range: '301+',
+    sensitive: 'avoid',
+    everyone: 'avoid',
+    avoidAll: 'everyone',
     caution: 'everyone should avoid all physical activity outdoors',
   },
 };
 
 /** The bands from cleanest to worst. */
 export const BAND_ORDER = Object.keys(EPA_BANDS) as AqiLevel[];
-export const worseBand = (a: AqiLevel, b: AqiLevel): AqiLevel => (BAND_ORDER.indexOf(a) >= BAND_ORDER.indexOf(b) ? a : b);
+export const worseBand = (a: AqiLevel, b: AqiLevel): AqiLevel =>
+  BAND_ORDER.indexOf(a) >= BAND_ORDER.indexOf(b) ? a : b;
 
 /** EPA "Activity Guide" for particle pollution: what a person should do outdoors at this AQI. */
 export const epaVerdict = (aqi: number, sensitive: boolean): Verdict =>
@@ -61,7 +83,8 @@ export const epaVerdict = (aqi: number, sensitive: boolean): Verdict =>
 export function epaActivity(band: AqiLevel, sensitive: boolean): Activity {
   const b = EPA_BANDS[band];
   const all = b.avoidAll === 'everyone' || (sensitive && b.avoidAll === 'sensitive');
-  return all ? 'avoidAll' : b[sensitive ? 'sensitive' : 'everyone'];
+  if (all) return 'avoidAll';
+  return sensitive ? b.sensitive : b.everyone;
 }
 
 export const activityRank = (a: Activity): number => ACTIVITY_LEVELS.indexOf(a);

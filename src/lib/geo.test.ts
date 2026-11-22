@@ -1,6 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import { jsonResponse } from '../test/fixtures';
-import { GEO_API, REVERSE_API, coordsLabel, currentPosition, placeLabel, reverseGeocode, sanitizePlaceQuery, searchPlaces } from './geo';
+import {
+  GEO_API,
+  REVERSE_API,
+  coordsLabel,
+  currentPosition,
+  placeLabel,
+  reverseGeocode,
+  sanitizePlaceQuery,
+  searchPlaces,
+} from './geo';
 
 describe('sanitizePlaceQuery', () => {
   it('keeps letters in any script and strips markup', () => {
@@ -32,23 +41,49 @@ describe('searchPlaces', () => {
     expect(String(f.mock.calls[0]?.[0])).toContain(GEO_API);
   });
 
+  it('leaves out a region or country the API does not give', async () => {
+    const f = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ results: [{ name: 'Leh', latitude: 34.16, longitude: 77.58, admin1: 7, country: null }] }),
+      );
+    expect(await searchPlaces('Leh', 'en', f)).toEqual([{ name: 'Leh', lat: 34.16, lon: 77.58 }]);
+  });
+
   it('returns no results when the API has none, and throws on HTTP errors', async () => {
     expect(await searchPlaces('Nowhere', 'en', vi.fn().mockResolvedValue(jsonResponse({})))).toEqual([]);
-    await expect(searchPlaces('Delhi', 'en', vi.fn().mockResolvedValue(new Response('', { status: 500 })))).rejects.toThrow('500');
+    await expect(
+      searchPlaces('Delhi', 'en', vi.fn().mockResolvedValue(new Response('', { status: 500 }))),
+    ).rejects.toThrow('500');
   });
 });
 
 describe('placeLabel', () => {
   it('joins the parts that exist', () => {
-    expect(placeLabel({ name: 'Patna', lat: 0, lon: 0, region: 'Bihar', country: 'India' })).toBe('Patna, Bihar, India');
+    expect(placeLabel({ name: 'Patna', lat: 0, lon: 0, region: 'Bihar', country: 'India' })).toBe(
+      'Patna, Bihar, India',
+    );
     expect(placeLabel({ name: 'Here', lat: 0, lon: 0 })).toBe('Here');
   });
 });
 
 describe('reverseGeocode', () => {
   it('names a position with city, state and country, sending only rounded coordinates', async () => {
-    const f = vi.fn().mockResolvedValue(jsonResponse({ city: 'Lucknow', locality: 'Lucknow', principalSubdivision: 'Uttar Pradesh', countryName: 'India' }));
-    expect(await reverseGeocode(26.8468, 80.9462, 'en', f)).toEqual({ name: 'Lucknow', lat: 26.8468, lon: 80.9462, region: 'Uttar Pradesh', country: 'India' });
+    const f = vi.fn().mockResolvedValue(
+      jsonResponse({
+        city: 'Lucknow',
+        locality: 'Lucknow',
+        principalSubdivision: 'Uttar Pradesh',
+        countryName: 'India',
+      }),
+    );
+    expect(await reverseGeocode(26.8468, 80.9462, 'en', f)).toEqual({
+      name: 'Lucknow',
+      lat: 26.8468,
+      lon: 80.9462,
+      region: 'Uttar Pradesh',
+      country: 'India',
+    });
     const url = new URL(String(f.mock.calls[0]?.[0]));
     expect(url.origin + url.pathname).toBe(REVERSE_API);
     expect(url.searchParams.get('latitude')).toBe('26.85');
@@ -56,10 +91,31 @@ describe('reverseGeocode', () => {
   });
 
   it('falls back to the locality, drops a region equal to the name, and returns null when unnamed or failing', async () => {
-    const f = vi.fn().mockResolvedValue(jsonResponse({ city: '', locality: 'Delhi', principalSubdivision: 'Delhi', countryName: 'India' }));
-    expect(await reverseGeocode(28.6, 77.2, 'en', f)).toEqual({ name: 'Delhi', lat: 28.6, lon: 77.2, country: 'India' });
-    expect(await reverseGeocode(0, 0, 'en', vi.fn().mockResolvedValue(jsonResponse({ city: '', locality: '' })))).toBeNull();
+    const f = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ city: '', locality: 'Delhi', principalSubdivision: 'Delhi', countryName: 'India' }),
+      );
+    expect(await reverseGeocode(28.6, 77.2, 'en', f)).toEqual({
+      name: 'Delhi',
+      lat: 28.6,
+      lon: 77.2,
+      country: 'India',
+    });
+    expect(
+      await reverseGeocode(0, 0, 'en', vi.fn().mockResolvedValue(jsonResponse({ city: '', locality: '' }))),
+    ).toBeNull();
     expect(await reverseGeocode(0, 0, 'en', vi.fn().mockResolvedValue(new Response('', { status: 500 })))).toBeNull();
+  });
+
+  it('leaves out the country when the position has none (open sea, disputed land)', async () => {
+    const f = vi.fn().mockResolvedValue(jsonResponse({ city: 'Kavaratti', principalSubdivision: 'Lakshadweep' }));
+    expect(await reverseGeocode(10.57, 72.64, 'en', f)).toEqual({
+      name: 'Kavaratti',
+      lat: 10.57,
+      lon: 72.64,
+      region: 'Lakshadweep',
+    });
   });
 
   it('formats coordinates in every hemisphere', () => {
@@ -71,16 +127,27 @@ describe('reverseGeocode', () => {
 describe('currentPosition', () => {
   it('rounds coordinates to about 1 km for privacy', async () => {
     const geo = {
-      getCurrentPosition: (ok: PositionCallback) => ok({ coords: { latitude: 28.613939, longitude: 77.209023 } } as GeolocationPosition),
+      getCurrentPosition: (ok: PositionCallback) =>
+        ok({ coords: { latitude: 28.613939, longitude: 77.209023 } } as GeolocationPosition),
     } as unknown as Geolocation;
     await expect(currentPosition('Me', geo)).resolves.toEqual({ name: 'Me', lat: 28.61, lon: 77.21 });
   });
 
   it('rejects when unsupported or denied', async () => {
-    await expect(currentPosition('Me', undefined)).rejects.toThrow('not supported');
+    await expect(currentPosition('Me')).rejects.toThrow('not supported');
     const denied = {
-      getCurrentPosition: (_ok: PositionCallback, fail: PositionErrorCallback) => fail({ message: '' } as GeolocationPositionError),
+      getCurrentPosition: (_ok: PositionCallback, fail: PositionErrorCallback) =>
+        fail({ message: '' } as GeolocationPositionError),
     } as unknown as Geolocation;
     await expect(currentPosition('Me', denied)).rejects.toThrow('denied');
+  });
+
+  it('rejects as unsupported where there is no navigator at all (server-side rendering, Node)', async () => {
+    vi.stubGlobal('navigator', undefined);
+    try {
+      await expect(currentPosition('Me')).rejects.toThrow('not supported');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

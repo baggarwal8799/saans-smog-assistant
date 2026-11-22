@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { REDIS_TOKEN, REDIS_URL, fakeRedis, redisEnv } from './fake-redis';
+import { REDIS_TOKEN, REDIS_URL, fakeRedis, redisEnv } from '../../src/test/fakeRedis';
 import { MemoryStore, UPSTASH_TIMEOUT_MS, UpstashStore, sharedStore, withFallback } from './store';
 
 afterEach(() => {
@@ -31,7 +31,10 @@ describe('UpstashStore', () => {
     expect(url).toBe(`${REDIS_URL}/pipeline`);
     expect(init.method).toBe('POST');
     expect((init.headers as Record<string, string>).authorization).toBe(`Bearer ${REDIS_TOKEN}`);
-    expect(JSON.parse(String(init.body))).toEqual([['INCR', 'rate:1.1.1.1'], ['EXPIRE', 'rate:1.1.1.1', '60', 'NX']]);
+    expect(JSON.parse(String(init.body))).toEqual([
+      ['INCR', 'rate:1.1.1.1'],
+      ['EXPIRE', 'rate:1.1.1.1', '60', 'NX'],
+    ]);
     expect(await store.incr('rate:1.1.1.1', 60, 0)).toBe(1);
     expect(JSON.parse(String(redis.fetchImpl.mock.calls[1]?.[1]?.body))[0]).toEqual(['INCRBY', 'rate:1.1.1.1', '0']);
   });
@@ -94,7 +97,17 @@ describe('withFallback', () => {
     expect(await store.incr('k', 60)).toBe(1);
     expect(await store.incr('k', 60)).toBe(2);
     expect(log.warn).toHaveBeenCalledTimes(2);
-    expect(log.warn.mock.calls[0]).toEqual([expect.stringMatching(/counting this client in memory/), 'Upstash HTTP 503']);
+    expect(log.warn.mock.calls[0]).toEqual([
+      expect.stringMatching(/counting this client in memory/),
+      'Upstash HTTP 503',
+    ]);
     expect(await withFallback(memory, broken, log).incr('k', 60)).toBe(3);
+  });
+
+  it('logs "unknown" when the primary fails with something that is not an Error', async () => {
+    const log = { warn: vi.fn() };
+    const broken = { incr: vi.fn<() => Promise<number>>().mockRejectedValue('ECONNRESET') };
+    expect(await withFallback(broken, new MemoryStore(), log).incr('k', 60)).toBe(1);
+    expect(log.warn).toHaveBeenCalledWith(expect.stringMatching(/counting this client in memory/), 'unknown');
   });
 });

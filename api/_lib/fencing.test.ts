@@ -3,9 +3,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { clearAirCache } from '../../src/lib/aqi';
 import { profile } from '../../src/test/fixtures';
 import { handleAssistant, resetAssistantState } from './assistant';
-import type { AssistantRequest } from './contract';
+import type { AssistantRequest } from '../../src/lib/contract';
 import { SYSTEM_INSTRUCTION } from './prompt';
-import { body, gemini, post, quietLog, sentPrompt, withAir } from './test-helpers';
+import { body, gemini, post, quietLog, sentPrompt, withAir } from '../../src/test/apiHelpers';
 import { parseAssistantRequest } from './validate';
 
 /**

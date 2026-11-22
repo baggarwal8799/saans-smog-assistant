@@ -33,7 +33,9 @@ await answer.or(alert).first().waitFor({ timeout: 40_000 });
 const ai = (await answer.count()) > 0 ? await answer.textContent() : `NO ANSWER: ${await alert.textContent()}`;
 if (process.env.EXPECT_AI === 'true' && (await answer.count()) === 0) failures.push(`assistant: ${ai}`);
 
-console.log(JSON.stringify({ title, aqi: await page.locator('.aqi-value').textContent(), steps, assistant: ai }, null, 2));
+console.log(
+  JSON.stringify({ title, aqi: await page.locator('.aqi-value').textContent(), steps, assistant: ai }, null, 2),
+);
 await browser.close();
 if (failures.length) {
   console.error(failures.join('\n'));

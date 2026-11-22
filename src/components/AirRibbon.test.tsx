@@ -6,7 +6,8 @@ import type { Lang, TimeWindow } from '../lib/types';
 import { AirRibbon } from './AirRibbon';
 
 const hours = airReport({ aqi: 120, weather: 'none', startHour: 6, place: INDIA }).hourly.slice(1);
-const show = (lang: Lang, best: TimeWindow | null) => render(<AirRibbon lang={lang} hours={hours} best={best} worst={null} stayIn={false} />);
+const show = (lang: Lang, best: TimeWindow | null) =>
+  render(<AirRibbon lang={lang} hours={hours} best={best} worst={null} stayIn={false} />);
 
 describe('AirRibbon', () => {
   it('gives every hour as text in a keyboard-reachable "Hourly numbers" table, axe-clean', async () => {

@@ -3,8 +3,9 @@
  * renders the answer from it: the fixed refusal for an off-topic question, the reply word (taken from the server's
  * own US EPA verdict whenever it has one), the lines, then the fixed safety lines (medical.ts).
  */
-import type { AssistantLang, AssistantRequest, EpaReply } from './contract.js';
+import type { AssistantLang, AssistantRequest, EpaReply } from '../../src/lib/contract.js';
 import { isUrgent, safetyLines } from './medical.js';
+import { YES_NO } from '../../src/lib/verdict.js';
 
 export type Reply = EpaReply | 'only_if' | 'none';
 
@@ -36,7 +37,11 @@ export const ANSWER_SCHEMA = {
 
 /** The server draws the bullets, so a line's own bullet and any line breaks inside it are dropped. */
 const cleanLine = (line: string): string =>
-  line.replace(/\s+/g, ' ').trim().replace(/^[•*-]\s+/u, '').slice(0, MAX_LINE_CHARS);
+  line
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^[•*-]\s+/u, '')
+    .slice(0, MAX_LINE_CHARS);
 
 /** The model's JSON as a ModelAnswer, or null when it does not fit the schema (a reply cut off mid-JSON, say). */
 export function parseAnswer(json: string): ModelAnswer | null {
@@ -64,14 +69,23 @@ export const REFUSAL_TEXT: Readonly<Record<AssistantLang, string>> = {
 };
 
 /** How each reply opens the first line. "Only if" runs on into the condition the first line states. */
-export const REPLY_WORD: Readonly<Record<AssistantLang, Record<Exclude<Reply, 'none'>, string>>> = {
-  en: { yes: 'Yes.', no: 'No.', only_if: 'Only if' },
-  hi: { yes: 'हाँ।', no: 'नहीं।', only_if: 'सिर्फ़ अगर' },
+type Said = Exclude<Reply, 'none'>;
+const replyWords = (lang: AssistantLang, stop: string, onlyIf: string): Record<Said, string> => ({
+  yes: YES_NO[lang].yes + stop,
+  no: YES_NO[lang].no + stop,
+  only_if: onlyIf,
+});
+export const REPLY_WORD: Readonly<Record<AssistantLang, Record<Said, string>>> = {
+  en: replyWords('en', '.', 'Only if'),
+  hi: replyWords('hi', '।', 'सिर्फ़ अगर'),
 };
 
-type Said = Exclude<Reply, 'none'>;
 /** What may follow a copied reply word: punctuation ("No, keep…", "नहीं। …"), or for "Only if" also a space. */
-const AFTER_WORD: Readonly<Record<Said, RegExp>> = { yes: /^\s*[,.!:;।—–-]/u, no: /^\s*[,.!:;।—–-]/u, only_if: /^[\s,:—–-]/u };
+const AFTER_WORD: Readonly<Record<Said, RegExp>> = {
+  yes: /^\s*[,.!:;।—–-]/u,
+  no: /^\s*[,.!:;।—–-]/u,
+  only_if: /^[\s,:—–-]/u,
+};
 
 /**
  * The first line without the model's own copy of its reply word: the server writes that word, and models repeat it
@@ -92,25 +106,55 @@ export function withoutReplyWord(lead: string, reply: Said, lang: AssistantLang)
  * no reply word is written even if the model set one. Hindi "क्या" also marks yes/no questions, so only
  * "क्या करें"-style forms count.
  */
-const OPENS_WITH_QUESTION_WORD =
-  /^\s*(?:(?:what|when|where|which|who|why|how)\b|(?:कब|कहाँ|कहां|कैसे|कौन|कितन|क्यों)|क्या\s+(?:करें|करूँ|करूं|करना))/iu;
+const QUESTION_WORDS = [
+  /^\s*(?:what|when|where|which|who|why|how)\b/iu,
+  /^\s*(?:कब|कहाँ|कहां|कैसे|कौन|कितन|क्यों)/u,
+  /^\s*क्या\s+(?:करें|करूँ|करूं|करना)/u,
+];
+const opensWithQuestionWord = (q: string): boolean => QUESTION_WORDS.some((re) => re.test(q));
+
+/** The model's reply word, and the word the server writes in its place (the EPA verdict's, when there is one). */
+export interface ReplyChoice {
+  said: Said;
+  word: Said;
+}
 
 /**
- * The text the user reads. A summary has no reply word and is never a refusal. When the model gives a yes/no
- * reply and the server has an EPA verdict, the verdict's word is used: the server, not the model, says yes or no.
+ * The reply word to open with, or undefined for none: a summary, an urgent answer, a "none" reply and a question
+ * that opens with a question word get no word. With an EPA verdict the server, not the model, says yes or no.
  */
-export function renderAnswer(answer: ModelAnswer, req: AssistantRequest, epaReply?: EpaReply): string {
-  const question = req.mode === 'question';
-  if (question && answer.offTopic) return REFUSAL_TEXT[req.lang];
-  const [lead = '', ...rest] = answer.lines;
-  const urgent = isUrgent(req);
-  const said = question && !urgent && answer.reply !== 'none' && !OPENS_WITH_QUESTION_WORD.test(req.question) ? answer.reply : undefined;
-  const reply = said ? (epaReply ?? said) : undefined;
+export function chooseReplyWord(
+  answer: ModelAnswer,
+  req: AssistantRequest,
+  epaReply?: EpaReply,
+): ReplyChoice | undefined {
+  if (req.mode !== 'question' || isUrgent(req) || answer.reply === 'none') return undefined;
+  if (opensWithQuestionWord(req.question)) return undefined;
+  return { said: answer.reply, word: epaReply ?? answer.reply };
+}
+
+type Choice = ReplyChoice | undefined;
+
+/** The lines with the reply word written into the first one. */
+function openingLines(lines: readonly string[], choice: Choice, lang: AssistantLang): readonly string[] {
+  if (!choice) return lines;
+  const [lead = '', ...rest] = lines;
   // An "only if" first line is a condition ("it is short and gentle"); under a different word it would read wrong.
-  const body = said === 'only_if' && reply !== 'only_if' ? rest : [withoutReplyWord(lead, said ?? 'no', req.lang), ...rest];
-  const first = said && reply ? [`${REPLY_WORD[req.lang][reply]} ${body[0] ?? ''}`.trim(), ...body.slice(1)] : [lead, ...rest];
-  const [head = '', ...tail] = first;
+  const dropLead = choice.said === 'only_if' && choice.word !== 'only_if';
+  const body = dropLead ? rest : [withoutReplyWord(lead, choice.said, lang), ...rest];
+  return [`${REPLY_WORD[lang][choice.word]} ${body[0] ?? ''}`.trim(), ...body.slice(1)];
+}
+
+/** The first line, the later lines as bullets, and the fixed safety lines: first in a breathing emergency. */
+export function assembleAnswer(lines: readonly string[], choice: Choice, req: AssistantRequest): string {
+  const [head = '', ...tail] = openingLines(lines, choice, req.lang);
+  const bullets = tail.map((l) => `• ${l}`);
   const safety = safetyLines(req);
-  // In a breathing emergency the get-help line comes before anything else.
-  return (urgent ? [...safety, head, ...tail.map((l) => `• ${l}`)] : [head, ...tail.map((l) => `• ${l}`), ...safety]).join('\n');
+  return (isUrgent(req) ? [...safety, head, ...bullets] : [head, ...bullets, ...safety]).join('\n');
+}
+
+/** The text the user reads. A summary has no reply word and is never a refusal. */
+export function renderAnswer(answer: ModelAnswer, req: AssistantRequest, epaReply?: EpaReply): string {
+  if (req.mode === 'question' && answer.offTopic) return REFUSAL_TEXT[req.lang];
+  return assembleAnswer(answer.lines, chooseReplyWord(answer, req, epaReply), req);
 }

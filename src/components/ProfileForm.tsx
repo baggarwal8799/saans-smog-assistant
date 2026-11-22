@@ -31,9 +31,11 @@ export function householdLine(lang: Lang, p: Profile): string {
   return parts.filter(Boolean).join(', ');
 }
 
-const prefetch = (): void => void loadEditor().catch(() => undefined);
+const prefetch = (): void => {
+  loadEditor().catch(() => undefined);
+};
 
-export function ProfileForm({ lang, profile, sample = false, onChange }: Props) {
+export function ProfileForm({ lang, profile, sample = false, onChange }: Readonly<Props>) {
   const base = useId();
   const [editing, setEditing] = useState(false);
   const id = (k: string) => `${base}-${k}`;
@@ -55,7 +57,9 @@ export function ProfileForm({ lang, profile, sample = false, onChange }: Props) 
         </button>
       </div>
       <p className="household-line">{householdLine(lang, profile)}</p>
-      {!editing && <p className={sample ? 'note sample-note' : 'note'}>{t(lang, sample ? 'householdSample' : 'householdHint')}</p>}
+      {!editing && (
+        <p className={sample ? 'note sample-note' : 'note'}>{t(lang, sample ? 'householdSample' : 'householdHint')}</p>
+      )}
       {editing && (
         <Suspense
           fallback={

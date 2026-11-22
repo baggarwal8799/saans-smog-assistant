@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { profile, report } from '../test/fixtures';
-import { CHILD_MASK_NOTE } from './plan/shared';
+import { CHILD_MASK_NOTE } from './plan/copy/masks';
 import { EPA_BANDS, asksOutdoor, bandGuidance, epaVerdict, outdoorFacts } from './verdict';
 
 describe('US EPA activity verdict', () => {
@@ -16,19 +16,26 @@ describe('US EPA activity verdict', () => {
   it('turns "can my 7-year-old play in the park?" at AQI 161 into an "avoid" fact that a mask does not change', () => {
     const f = outdoorFacts('Can my 7-year-old kid play in the park?', report({ usAqi: 161 }), profile());
     expect(f.reply).toBe('no');
-    expect(f.lines[0]).toMatch(/^US EPA activity guidance now \(US AQI ≈ 161\): children: avoid prolonged or heavy exertion outdoors/);
+    expect(f.lines[0]).toMatch(
+      /^US EPA activity guidance now \(US AQI ≈ 161\): children: avoid prolonged or heavy exertion outdoors/,
+    );
     // One mask truth for children, shared with the plan's N95 tip.
     expect(f.lines[0]).toContain(CHILD_MASK_NOTE.en);
   });
 
-  it('hands over EPA\'s own words for each group and band, never stronger or weaker', () => {
-    const line = (aqi: number, q: string) => outdoorFacts(q, report({ usAqi: aqi }), profile({ hasChildren: false }))?.lines[0] ?? '';
+  it("hands over EPA's own words for each group and band, never stronger or weaker", () => {
+    const line = (aqi: number, q: string) =>
+      outdoorFacts(q, report({ usAqi: aqi }), profile({ hasChildren: false })).lines[0] ?? '';
     // A gentle walk keeps EPA's "avoid" (plain reply "No") and the plan's own words for a trip that cannot wait.
     expect(line(163, 'Can my father, who has asthma, walk?')).toMatch(
       /father: avoid prolonged or heavy exertion outdoors; if a short trip out cannot wait, keep it gentle; move it indoors.*father: No\./,
     );
-    expect(line(163, 'Can my father, who has asthma, play cricket?')).toMatch(/father: avoid prolonged or heavy exertion outdoors; move it indoors/);
-    expect(line(163, 'Can my 40-year-old brother jog?')).toMatch(/: reduce prolonged or heavy exertion outdoors, with more breaks/);
+    expect(line(163, 'Can my father, who has asthma, play cricket?')).toMatch(
+      /father: avoid prolonged or heavy exertion outdoors; move it indoors/,
+    );
+    expect(line(163, 'Can my 40-year-old brother jog?')).toMatch(
+      /: reduce prolonged or heavy exertion outdoors, with more breaks/,
+    );
     expect(line(250, 'Can my father, who has asthma, walk?')).toMatch(/father: avoid all physical activity outdoors/);
     expect(line(250, 'Can I jog?')).toMatch(/the person asking: avoid prolonged or heavy exertion outdoors/);
     expect(line(350, 'Can I jog?')).toMatch(/the person asking: avoid all physical activity outdoors/);
@@ -36,7 +43,11 @@ describe('US EPA activity verdict', () => {
   });
 
   it('gives one line per asked time, with each person judged on their own', () => {
-    const f = outdoorFacts('Can my kids and my father go for a walk at 7:00 and 15:00?', report({ usAqi: 161 }), profile());
+    const f = outdoorFacts(
+      'Can my kids and my father go for a walk at 7:00 and 15:00?',
+      report({ usAqi: 161 }),
+      profile(),
+    );
     expect(f.lines).toHaveLength(2);
     expect(f.lines[0]).toMatch(/at 07:00 .*children: .*; father: /);
     // Mixed verdicts are spelled out per person, so the model answers "No" for the children, not "Only if".
@@ -45,7 +56,9 @@ describe('US EPA activity verdict', () => {
   });
 
   it('says nothing for questions that are not about going outdoors', () => {
-    expect(outdoorFacts('How do I clean the purifier filter?', report({ usAqi: 161 }), profile())).toEqual({ lines: [] });
+    expect(outdoorFacts('How do I clean the purifier filter?', report({ usAqi: 161 }), profile())).toEqual({
+      lines: [],
+    });
   });
 
   it('gives the yes/no word in the reply language, so a Hindi answer can open with it', () => {
@@ -57,12 +70,15 @@ describe('US EPA activity verdict', () => {
     expect(outdoorFacts('Can my kid play in the park?', report({ usAqi: 161 }), profile(), 'hi').reply).toBe('no');
     expect(outdoorFacts('Can my kid play in the park?', report({ usAqi: 40 }), profile()).reply).toBe('yes');
     // Children avoid, the father only reduces: one "avoid" makes the plain answer "no".
-    expect(outdoorFacts('Can my kids and my father go for a walk?', report({ usAqi: 161 }), profile()).reply).toBe('no');
+    expect(outdoorFacts('Can my kids and my father go for a walk?', report({ usAqi: 161 }), profile()).reply).toBe(
+      'no',
+    );
     expect(outdoorFacts('Can my father go for a walk?', report({ usAqi: 163 }), profile()).reply).toBeUndefined();
   });
 
   const at163 = report({ usAqi: 163 });
-  const replyFor = (q: string, p = profile(), lang: 'en' | 'hi' = 'en') => (outdoorFacts(q, at163, p, lang).lines[0] ?? '').replace(/^.*The yes\/no answer for each: /, '');
+  const replyFor = (q: string, p = profile(), lang: 'en' | 'hi' = 'en') =>
+    (outdoorFacts(q, at163, p, lang).lines[0] ?? '').replace(/^.*The yes\/no answer for each: /, '');
 
   it.each([
     ['Can my father, who has asthma, go for a walk?', 'father: No.'],
@@ -94,7 +110,9 @@ describe('US EPA activity verdict', () => {
   it('uses the profile: a household heart/lung condition makes every named person sensitive, elderly makes parents', () => {
     expect(replyFor('Can my father go for a walk?', profile({ hasRespiratory: true }))).toBe('father: No.');
     expect(replyFor('Can my father go for a walk?', profile({ hasElderly: true }))).toBe('father: No.');
-    expect(replyFor('Can I go for a run? I have asthma.', profile({ hasChildren: false }))).toBe('the person asking: No.');
+    expect(replyFor('Can I go for a run? I have asthma.', profile({ hasChildren: false }))).toBe(
+      'the person asking: No.',
+    );
   });
 
   it('judges a part of the day at its worst hour, as for "morning walk at 7"', () => {
@@ -129,7 +147,14 @@ describe('US EPA activity verdict', () => {
 
 describe('US EPA band table', () => {
   it('gives every band one cautionary statement, and the verdict never disagrees with it', () => {
-    for (const [aqi, band] of [[30, 'good'], [75, 'moderate'], [120, 'sensitive'], [170, 'unhealthy'], [250, 'veryUnhealthy'], [350, 'hazardous']] as const) {
+    for (const [aqi, band] of [
+      [30, 'good'],
+      [75, 'moderate'],
+      [120, 'sensitive'],
+      [170, 'unhealthy'],
+      [250, 'veryUnhealthy'],
+      [350, 'hazardous'],
+    ] as const) {
       const b = EPA_BANDS[band];
       expect([epaVerdict(aqi, true), epaVerdict(aqi, false)]).toEqual([b.sensitive, b.everyone]);
       // "avoid" in the verdict only where the statement says avoid, for that group.
@@ -140,15 +165,23 @@ describe('US EPA band table', () => {
 
   it('reaches the model at Moderate for a household with asthma (AQI 52)', () => {
     const line = bandGuidance(52, profile({ hasChildren: false, hasRespiratory: true }));
-    expect(line).toBe('US EPA guidance for Moderate air (US AQI 51–100): unusually sensitive people should consider reducing prolonged or heavy exertion outdoors. This household has someone with a heart or lung condition (US EPA sensitive groups): say what this means for them.');
-    expect(bandGuidance(120, profile({ hasChildren: false }))).toBe('US EPA guidance for Unhealthy for sensitive groups air (US AQI 101–150): sensitive groups should reduce prolonged or heavy exertion outdoors.');
+    expect(line).toBe(
+      'US EPA guidance for Moderate air (US AQI 51–100): unusually sensitive people should consider reducing prolonged or heavy exertion outdoors. This household has someone with a heart or lung condition (US EPA sensitive groups): say what this means for them.',
+    );
+    expect(bandGuidance(120, profile({ hasChildren: false }))).toBe(
+      'US EPA guidance for Unhealthy for sensitive groups air (US AQI 101–150): sensitive groups should reduce prolonged or heavy exertion outdoors.',
+    );
     expect(bandGuidance(40, profile())).toBe('');
   });
 });
 
 describe('the person asking', () => {
   it('is an adult of unknown health: children or elders in the household do not make them sensitive', () => {
-    const f = outdoorFacts('Can I cycle to the office?', report({ usAqi: 165 }), profile({ hasChildren: true, hasElderly: true, hasRespiratory: false }));
+    const f = outdoorFacts(
+      'Can I cycle to the office?',
+      report({ usAqi: 165 }),
+      profile({ hasChildren: true, hasElderly: true, hasRespiratory: false }),
+    );
     expect(f.lines[0]).toMatch(/the person asking: reduce prolonged or heavy exertion/);
   });
 });

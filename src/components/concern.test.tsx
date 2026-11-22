@@ -15,7 +15,7 @@ function domText(c: Case): string {
       <PlanView lang={c.lang} plan={c.plan} />
     </>,
   );
-  const text = container.textContent ?? '';
+  const text = container.textContent;
   unmount();
   return text;
 }
@@ -36,10 +36,12 @@ describe('AirNow and PlanView speak with one concern level', () => {
   it('every clean-air grid scenario renders without a caution phrase', () => {
     const clean = cases().filter((c) => c.plan.concern === 'low');
     expect(clean.length).toBeGreaterThan(500);
-    const found = clean.filter((_, i) => i % 7 === 0).flatMap((c) => {
-      const hit = CAUTION.exec(domText(c))?.[0];
-      return hit ? [`"${hit}" | ${c.name}`] : [];
-    });
+    const found = clean
+      .filter((_, i) => i % 7 === 0)
+      .flatMap((c) => {
+        const hit = CAUTION.exec(domText(c))?.[0];
+        return hit ? [`"${hit}" | ${c.name}`] : [];
+      });
     expect(found).toEqual([]);
   });
 });

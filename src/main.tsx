@@ -19,18 +19,19 @@ import './styles/plan.css';
 import './styles/rows.css';
 import './styles/loading.css';
 
-// Someone who chose Hindi gets it from the first frame: the Hindi chunk is requested before React starts, and the
-// first render waits for it, so the page never flashes English. If it cannot load (offline), the page starts in English.
+// Hindi users get Hindi from the first frame: the first render waits for the Hindi chunk, so English never flashes.
+// If it cannot load (offline), the page starts in English.
 const savedLang = loadLang();
 const ready = savedLang === 'en' ? Promise.resolve() : loadDictionary(savedLang).catch(() => undefined);
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Root element missing');
 const mount = root;
-void ready.then(() =>
+// ready never rejects (a failed Hindi load is caught above), so there is nothing to handle.
+void ready.then(() => {
   createRoot(mount).render(
     <StrictMode>
       <App />
     </StrictMode>,
-  ),
-);
+  );
+});

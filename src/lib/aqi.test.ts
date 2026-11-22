@@ -1,6 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DELHI, hourly, jsonResponse, openMeteoPayload, weatherPayload } from '../test/fixtures';
-import { AIR_API, AIR_CACHE_MAX, airCacheSize, pm25Level, aqiLevel, clearAirCache, fetchAirReport, parseAirResponse } from './aqi';
+import {
+  AIR_API,
+  AIR_CACHE_MAX,
+  airCacheSize,
+  pm25Level,
+  aqiLevel,
+  clearAirCache,
+  fetchAirReport,
+  parseAirResponse,
+} from './aqi';
 import { findSmogTrap, mergeWeather } from './weather';
 import { averagePm25, findWindow, formatHour } from './windows';
 
@@ -30,11 +39,16 @@ describe('parseAirResponse', () => {
   it('rejects malformed payloads', () => {
     expect(() => parseAirResponse(null, DELHI)).toThrow();
     expect(() => parseAirResponse({}, DELHI)).toThrow(/Missing current/);
-    expect(() => parseAirResponse({ current: { time: '2026-11-17T10:00', us_aqi: null } }, DELHI)).toThrow(/unavailable/);
+    expect(() => parseAirResponse({ current: { time: '2026-11-17T10:00', us_aqi: null } }, DELHI)).toThrow(
+      /unavailable/,
+    );
   });
 
   it('tolerates missing hourly arrays and non-numeric values', () => {
-    const payload = { current: { time: '2026-11-17T10:00', us_aqi: 90, pm2_5: 30, pm10: 'x' }, hourly: { time: ['2026-11-17T10:00'], pm2_5: [null] } };
+    const payload = {
+      current: { time: '2026-11-17T10:00', us_aqi: 90, pm2_5: 30, pm10: 'x' },
+      hourly: { time: ['2026-11-17T10:00'], pm2_5: [null] },
+    };
     const r = parseAirResponse(payload, DELHI);
     expect(r.hourly).toEqual([]);
     expect(Number.isNaN(r.current.pm10)).toBe(true);
@@ -145,6 +159,13 @@ describe('winter smog trap', () => {
   });
 
   it('bands hourly PM2.5 on the EPA scale', () => {
-    expect([5, 20, 40, 100, 200, 300].map(pm25Level)).toEqual(['good', 'moderate', 'sensitive', 'unhealthy', 'veryUnhealthy', 'hazardous']);
+    expect([5, 20, 40, 100, 200, 300].map(pm25Level)).toEqual([
+      'good',
+      'moderate',
+      'sensitive',
+      'unhealthy',
+      'veryUnhealthy',
+      'hazardous',
+    ]);
   });
 });

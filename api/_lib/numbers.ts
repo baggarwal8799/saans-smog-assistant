@@ -12,7 +12,7 @@ const CLOCK = /\b\d{1,2}:\d{2}\b/g;
 
 /** Numbers that are names, clock times or years, never a quantity the model could invent. */
 const NOT_QUANTITIES = [
-  /[A-Za-z]+\d+(?:\.\d+)?/g, // PM2.5, PM10, N95, FFP2, CO2
+  /(?<![A-Za-z])[A-Za-z]+\d+(?:\.\d+)?/g, // PM2.5, PM10, N95, FFP2, CO2 (starts only at a letter run's start)
   CLOCK,
   /\b\d{1,2}\s*(?:a\.?m\.?|p\.?m\.?|o'clock)(?![a-z])/gi, // 7 am, 2 p.m., 6 o'clock
   /\d{1,2}\s*बजे/gu, // 7 बजे
@@ -29,7 +29,11 @@ const numbersIn = (text: string): number[] => (text.match(/\d+(?:\.\d+)?/g) ?? [
 function groundedNumbers(context: string): Set<number> {
   // Clock times are allowed in any answer anyway, and plan list numbers ("2. Close the windows") are positions:
   // neither grounds a quantity.
-  const all = numbersIn(normaliseNumbers(context).replace(CLOCK, ' ').replace(/^\d+\.\s/gm, ' '));
+  const all = numbersIn(
+    normaliseNumbers(context)
+      .replace(CLOCK, ' ')
+      .replace(/^\d+\.\s/gm, ' '),
+  );
   return new Set([...all, ...all.map(Math.round)]);
 }
 

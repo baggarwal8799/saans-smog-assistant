@@ -11,21 +11,35 @@ export const ACRONYM = /^[A-Z][A-Z0-9.₀-₉²³+]*$/u;
 /** Word breaks: spaces and punctuation in either script ("।", "॥", quotes, dashes, "/"). */
 const WORD_BREAK = /[\s,;:!?()[\]"“”‘’'।॥•|…–—/-]+/u;
 
+/** Strips leading and trailing "." and "*" in linear time (a `[.*]+$` regex backtracks on long runs). */
+function trimMarks(word: string): string {
+  const mark = (ch: string | undefined): boolean => ch === '.' || ch === '*';
+  let start = 0;
+  let end = word.length;
+  while (start < end && mark(word[start])) start++;
+  while (end > start && mark(word[end - 1])) end--;
+  return word.slice(start, end);
+}
+
+/** Which scripts the letters of one word use; digits, marks and punctuation count as none. */
+function scriptsOf(word: string): { latin: boolean; deva: boolean; other: boolean } {
+  const found = { latin: false, deva: false, other: false };
+  for (const ch of word) {
+    if (!/\p{L}/u.test(ch)) continue;
+    if (/\p{Script=Devanagari}/u.test(ch)) found.deva = true;
+    else if (/\p{Script=Latin}/u.test(ch)) found.latin = true;
+    else if (!/\p{Script=Common}/u.test(ch)) found.other = true;
+  }
+  return found;
+}
+
 /** Words in a Hindi answer that are not Devanagari: other scripts, or Latin that is not an acronym or unit. */
 export function nonDevanagariWords(answer: string): string[] {
   const bad = new Set<string>();
   const words = answer.normalize('NFC').replace(UNIT_TOKENS, ' ').split(WORD_BREAK);
   for (const raw of words) {
-    const word = raw.replace(/^[.*]+|[.*]+$/g, ''); // "*smog." → "smog"
-    let latin = false;
-    let deva = false;
-    let other = false;
-    for (const ch of word) {
-      if (!/\p{L}/u.test(ch)) continue;
-      if (/\p{Script=Devanagari}/u.test(ch)) deva = true;
-      else if (/\p{Script=Latin}/u.test(ch)) latin = true;
-      else if (!/\p{Script=Common}/u.test(ch)) other = true;
-    }
+    const word = trimMarks(raw); // "*smog." → "smog"
+    const { latin, deva, other } = scriptsOf(word);
     const allowedLatin = ACRONYM.test(word) || LATIN_UNITS.has(word);
     if (other || (latin && (deva || !allowedLatin))) bad.add(word);
   }

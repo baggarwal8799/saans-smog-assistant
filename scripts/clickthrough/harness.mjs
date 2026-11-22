@@ -15,9 +15,15 @@ export async function step(page, name, fn) {
     const note = await fn();
     results.push({ step: `${id} ${name}`, ok: true, note: note ?? '' });
   } catch (err) {
-    results.push({ step: `${id} ${name}`, ok: false, note: err instanceof Error ? err.message.split('\n')[0] : String(err) });
+    results.push({
+      step: `${id} ${name}`,
+      ok: false,
+      note: err instanceof Error ? err.message.split('\n')[0] : String(err),
+    });
   }
-  await page.screenshot({ path: `${OUT}/${id}-${name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.png`, fullPage: true }).catch(() => undefined);
+  await page
+    .screenshot({ path: `${OUT}/${id}-${name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.png`, fullPage: true })
+    .catch(() => undefined);
 }
 export const must = (cond, msg) => {
   if (!cond) throw new Error(msg);
@@ -26,7 +32,10 @@ export const must = (cond, msg) => {
 /** Prints the report and exits non-zero on any failed step or console error. */
 export function report(consoleErrors) {
   const failed = results.filter((r) => !r.ok);
-  for (const r of results) console.log(`${r.ok ? 'PASS' : 'FAIL'}  ${r.step}${r.note ? `  ·  ${r.note}` : ''}`);
+  for (const r of results) {
+    const note = r.note ? `  ·  ${r.note}` : '';
+    console.log(`${r.ok ? 'PASS' : 'FAIL'}  ${r.step}${note}`);
+  }
   console.log(consoleErrors.length ? `\nConsole errors:\n${consoleErrors.join('\n')}` : '\nNo console errors.');
   console.log(`\n${results.length - failed.length}/${results.length} steps passed. Screenshots: ./${OUT}`);
   if (failed.length || consoleErrors.length) process.exit(1);

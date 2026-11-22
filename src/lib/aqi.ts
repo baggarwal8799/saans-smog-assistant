@@ -1,5 +1,6 @@
 import type { AirReport, HourPoint, Place, Pollutant } from './types.js';
 import { mergeWeather } from './weather.js';
+import { ttlCache } from './ttlCache.js';
 
 export const AIR_API = 'https://air-quality-api.open-meteo.com/v1/air-quality';
 export const WEATHER_API = 'https://api.open-meteo.com/v1/forecast';
@@ -54,17 +55,18 @@ export function dominantPollutant(current: Record<string, unknown>): Pollutant |
   return best;
 }
 
-/** Validates and normalises the Open-Meteo response; throws on anything unusable. */
-export function parseAirResponse(raw: unknown, place: Place): AirReport {
-  if (typeof raw !== 'object' || raw === null) throw new Error('Invalid air-quality response');
-  const data = raw as {
-    timezone?: unknown;
-    current?: Record<string, unknown>;
-    hourly?: { time?: unknown; pm2_5?: unknown; us_aqi?: unknown; ozone?: unknown };
-  };
-  const c = data.current;
-  if (!c || typeof c.time !== 'string') throw new Error('Missing current air quality');
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
 
+/** The value when it is an array, else empty: a malformed series reads as "no hours". */
+const asArray = (v: unknown): readonly unknown[] => (Array.isArray(v) ? v : []);
+
+/** One hourly series as numbers; a missing or non-finite entry is NaN. */
+function numericSeries(hourly: Record<string, unknown>, key: string): number[] {
+  return asArray(hourly[key]).map(num);
+}
+
+function parseCurrent(c: unknown): AirReport['current'] {
+  if (!isRecord(c) || typeof c.time !== 'string') throw new Error('Missing current air quality');
   const current = {
     time: c.time,
     usAqi: num(c.us_aqi),
@@ -74,50 +76,44 @@ export function parseAirResponse(raw: unknown, place: Place): AirReport {
     o3: num(c.ozone),
     dominant: dominantPollutant(c),
   };
-  if (Number.isNaN(current.usAqi) || Number.isNaN(current.pm25)) throw new Error('Air quality unavailable for this place');
+  if (Number.isNaN(current.usAqi) || Number.isNaN(current.pm25))
+    throw new Error('Air quality unavailable for this place');
+  return current;
+}
 
-  const times = Array.isArray(data.hourly?.time) ? (data.hourly.time as unknown[]) : [];
-  const pm = Array.isArray(data.hourly?.pm2_5) ? (data.hourly.pm2_5 as unknown[]) : [];
-  const aqi = Array.isArray(data.hourly?.us_aqi) ? (data.hourly.us_aqi as unknown[]) : [];
-  const ozone = Array.isArray(data.hourly?.ozone) ? (data.hourly.ozone as unknown[]) : [];
-  const currentHour = current.time.slice(0, 13);
-
+/** Forecast hours from the current hour on, skipping any without PM2.5 or AQI; ozone is kept when known. */
+function parseHourly(raw: unknown, currentHour: string): HourPoint[] {
+  const h = isRecord(raw) ? raw : {};
+  const pm = numericSeries(h, 'pm2_5');
+  const aqi = numericSeries(h, 'us_aqi');
+  const ozone = numericSeries(h, 'ozone');
   const hourly: HourPoint[] = [];
-  times.forEach((t, i) => {
-    const p = num(pm[i]);
-    const a = num(aqi[i]);
+  asArray(h.time).forEach((t, i) => {
+    const p = pm[i] ?? Number.NaN;
+    const a = aqi[i] ?? Number.NaN;
     if (typeof t === 'string' && t.slice(0, 13) >= currentHour && !Number.isNaN(p) && !Number.isNaN(a)) {
-      const o = num(ozone[i]);
+      const o = ozone[i] ?? Number.NaN;
       hourly.push(Number.isNaN(o) ? { time: t, pm25: p, usAqi: a } : { time: t, pm25: p, usAqi: a, o3: o });
     }
   });
+  return hourly;
+}
 
+/** Validates and normalises the Open-Meteo response; throws on anything unusable. */
+export function parseAirResponse(raw: unknown, place: Place): AirReport {
+  if (!isRecord(raw)) throw new Error('Invalid air-quality response');
+  const current = parseCurrent(raw.current);
   return {
     place,
-    timezone: typeof data.timezone === 'string' ? data.timezone : 'auto',
+    timezone: typeof raw.timezone === 'string' ? raw.timezone : 'auto',
     current,
-    hourly,
+    hourly: parseHourly(raw.hourly, current.time.slice(0, 13)),
   };
 }
 
-interface CacheEntry {
-  at: number;
-  report: AirReport;
-}
-const cache = new Map<string, CacheEntry>();
 /** Enough for every city a busy day brings, small enough that random coordinates cannot exhaust memory. */
 export const AIR_CACHE_MAX = 500;
-
-function remember(key: string, report: AirReport, now: number): void {
-  for (const [k, v] of cache) if (now - v.at >= CACHE_TTL_MS) cache.delete(k);
-  cache.delete(key);
-  cache.set(key, { at: now, report });
-  while (cache.size > AIR_CACHE_MAX) {
-    const oldest = cache.keys().next().value;
-    if (oldest === undefined) break;
-    cache.delete(oldest);
-  }
-}
+const cache = ttlCache<AirReport>(CACHE_TTL_MS, AIR_CACHE_MAX);
 
 export const airCacheSize = (): number => cache.size;
 
@@ -126,9 +122,8 @@ export function clearAirCache(): void {
 }
 
 /**
- * The Open-Meteo request for a place, the one builder the browser and the server both use. Coordinates are rounded
- * once, to the ~1 km grid the cache keys on, so the same place always means the same URL, the same cache entry and
- * the same numbers on the page and in the assistant's answer.
+ * The one Open-Meteo request builder for browser and server. Coordinates are rounded to the ~1 km cache grid,
+ * so a place always gives the same URL, cache entry and numbers on the page and in the assistant's answer.
  */
 export function airRequest(place: Pick<Place, 'lat' | 'lon'>): { air: string; weather: string } {
   const at = { latitude: place.lat.toFixed(2), longitude: place.lon.toFixed(2), timezone: 'auto', forecast_days: '3' };
@@ -145,18 +140,18 @@ export function airRequest(place: Pick<Place, 'lat' | 'lon'>): { air: string; we
 export async function fetchAirReport(place: Place, fetchImpl: typeof fetch = fetch): Promise<AirReport> {
   const url = airRequest(place);
   const hit = cache.get(url.air);
-  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return { ...hit.report, place };
+  if (hit) return { ...hit, place };
 
   // Weather only adds the smog-trap insight, so a weather failure must never block the air reading.
   const [res, weather] = await Promise.all([
     fetchImpl(url.air, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }),
     fetchImpl(url.weather, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r): Promise<unknown> | null => (r.ok ? r.json() : null))
       .catch(() => null),
   ]);
   if (!res.ok) throw new Error(`Air-quality service error (${res.status})`);
   const parsed = parseAirResponse(await res.json(), place);
   const report = { ...parsed, hourly: mergeWeather(parsed.hourly, weather) };
-  remember(url.air, report, Date.now());
+  cache.set(url.air, report);
   return report;
 }

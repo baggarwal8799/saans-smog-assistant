@@ -4,8 +4,7 @@ import { nonDevanagariWords } from './script';
 
 describe('script: Devanagari only in Hindi', () => {
   it('passes Devanagari with Latin acronyms and units', () => {
-    const answer =
-      'नहीं। शाम 19:00–21:00 में PM2.5 ≈ 230 µg/m³ रहेगा; बच्चों को घर में रखें, बाहर N95 पहनाएँ। CO₂ और AQI भी।';
+    const answer = 'नहीं। शाम 19:00–21:00 में PM2.5 ≈ 230 µg/m³ रहेगा; बच्चों को घर में रखें, बाहर N95 पहनाएँ। CO₂ और AQI भी।';
     expect(nonDevanagariWords(answer)).toEqual([]);
   });
 
@@ -14,5 +13,9 @@ describe('script: Devanagari only in Hindi', () => {
     expect(nonDevanagariWords('नहीं, आज smog बहुत है।')).toEqual(['smog']);
     expect(nonDevanagariWords('स्मॉग जाल (smog trap) में घर पर रहें।')).toEqual(['smog', 'trap']);
     expect(nonDevanagariWords('PM2.5 साँس में जाएगा।')).toEqual(['साँس']);
+  });
+
+  it('does not flag a letter of the shared Common script, such as the modifier apostrophe ʼ', () => {
+    expect(nonDevanagariWords('आज ʼ हवा ख़राब है।')).toEqual([]);
   });
 });

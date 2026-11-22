@@ -5,11 +5,22 @@ import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const LIMIT_BYTES = 5 * 1024 * 1024;
-const SKIP = new Set(['node_modules', 'dist', 'coverage', '.git', '.vercel', 'test-results', 'playwright-report', 'screenshots']);
+const SKIP = new Set([
+  'node_modules',
+  'dist',
+  'coverage',
+  '.git',
+  '.vercel',
+  'test-results',
+  'playwright-report',
+  'screenshots',
+]);
 
 function gitFiles() {
   try {
-    const out = execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    const args = ['ls-files', '-z', '--cached', '--others', '--exclude-standard'];
+    // eslint-disable-next-line sonarjs/no-os-command-from-path -- dev script: runs the developer's own git
+    const out = execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
     const files = out.split('\0').filter(Boolean);
     return files.length > 0 ? files : null;
   } catch {

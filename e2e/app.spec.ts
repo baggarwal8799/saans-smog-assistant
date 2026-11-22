@@ -25,6 +25,9 @@ test('serves the production security headers', async ({ request }) => {
   expect(h['x-content-type-options']).toBe('nosniff');
   expect(h['x-frame-options']).toBe('DENY');
   expect(h['permissions-policy']).toContain('geolocation=(self)');
+  expect(h['cross-origin-opener-policy']).toBe('same-origin');
+  expect(h['cross-origin-resource-policy']).toBe('same-origin');
+  expect(h['x-permitted-cross-domain-policies']).toBe('none');
 });
 
 test('end-to-end: city → live air → plan with impacts → assistant', async ({ page }) => {
@@ -122,7 +125,10 @@ test('keyboard users can skip to content and operate the search', async ({ page 
 test('no horizontal scrolling at phone width', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await pickDelhi(page);
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  const overflow = await page.evaluate(() => {
+    const root = document.documentElement;
+    return root.scrollWidth - root.clientWidth;
+  });
   expect(overflow).toBeLessThanOrEqual(0);
 });
 
@@ -130,7 +136,9 @@ test('API rejects malformed, oversized, cross-site and origin-less requests', as
   // What a browser on the page sends; a POST with no Origin and no Sec-Fetch-Site (a script) is refused.
   const origin = { origin: new URL(baseURL ?? '').origin };
   expect((await request.get('/api/assistant')).status()).toBe(405);
-  expect((await request.post('/api/assistant', { data: {}, headers: { 'sec-fetch-site': 'cross-site' } })).status()).toBe(403);
+  expect(
+    (await request.post('/api/assistant', { data: {}, headers: { 'sec-fetch-site': 'cross-site' } })).status(),
+  ).toBe(403);
   expect((await request.post('/api/assistant', { data: { lang: 'xx' } })).status()).toBe(403);
   expect((await request.post('/api/assistant', { data: { lang: 'xx' }, headers: origin })).status()).toBe(400);
   const big = { data: 'x'.repeat(16_000), headers: { 'content-type': 'application/json', ...origin } };

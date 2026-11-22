@@ -26,25 +26,29 @@ function windowText(lang: Lang, w: TimeWindow, now: string): string {
  */
 const AQI_BASIS: Record<string, MessageKey> = { o3: 'aqiBasisO3', no2: 'aqiBasisNo2' };
 
-export function AirNow({ lang, report, plan }: Props) {
+export function AirNow({ lang, report, plan }: Readonly<Props>) {
   const { current } = report;
-  const level = aqiLevel(current.usAqi);
-  // "Stay in" only on days the plan itself tells people to stay in; otherwise the dirtiest hours are just the least clean.
-  const stayIn = cautious(plan.concern);
-  const metrics = [
-    { key: 'pm25', value: current.pm25 },
-    { key: 'pm10', value: current.pm10 },
-    { key: 'no2', value: current.no2 },
-    { key: 'o3', value: current.o3 },
-  ] as const;
-
   return (
     <section aria-labelledby="air-heading" className="air-now">
       <h2 id="air-heading" tabIndex={-1} className="air-place">
         {t(lang, 'airHeadingFor', { place: placeLabel(report.place) })}
       </h2>
+      <AirReading lang={lang} report={report} plan={plan} />
+      <AirForecast lang={lang} report={report} plan={plan} />
+      {plan.smogTrap && <SmogTrap lang={lang} trap={plan.smogTrap} now={current.time} />}
+      <p className="note air-updated">
+        {t(lang, 'windowBasis')} {t(lang, 'updated')}:{' '}
+        <time dateTime={current.time}>{current.time.replace('T', ' ')}</time>
+      </p>
+    </section>
+  );
+}
 
-      <div className="air-reading">
+function AirReading({ lang, report, plan }: Readonly<Props>) {
+  const { current } = report;
+  const level = aqiLevel(current.usAqi);
+  return (
+    <div className="air-reading">
       <div className="reading">
         <p className={`aqi-badge aqi-${level}`}>
           <span className="aqi-value">{Math.round(current.usAqi)}</span>
@@ -61,48 +65,72 @@ export function AirNow({ lang, report, plan }: Props) {
           )}
         </div>
       </div>
-
       <p className="note metrics-basis">{t(lang, 'metricsBasis')}</p>
-      <dl className="metrics">
-        {metrics.map((m) => (
-          <div key={m.key}>
-            <dt>{t(lang, m.key)}</dt>
-            <dd>
-              {Number.isNaN(m.value) ? '—' : formatNumber(lang, m.value)} <span className="unit">µg/m³</span>
-            </dd>
-          </div>
-        ))}
-      </dl>
+      <Metrics lang={lang} current={current} />
       {(current.dominant === 'pm25' || current.dominant === 'pm10') && <p className="note">{t(lang, 'aqiNote')}</p>}
-      </div>
+    </div>
+  );
+}
 
-      <div className="air-forecast">
-      <AirRibbon lang={lang} hours={report.hourly.slice(1)} best={plan.bestWindow} worst={plan.worstWindow} stayIn={stayIn} />
+function Metrics({ lang, current }: Readonly<{ lang: Lang; current: AirReport['current'] }>) {
+  const metrics = [
+    { key: 'pm25', value: current.pm25 },
+    { key: 'pm10', value: current.pm10 },
+    { key: 'no2', value: current.no2 },
+    { key: 'o3', value: current.o3 },
+  ] as const;
+  return (
+    <dl className="metrics">
+      {metrics.map((m) => (
+        <div key={m.key}>
+          <dt>{t(lang, m.key)}</dt>
+          <dd>
+            {Number.isNaN(m.value) ? '—' : formatNumber(lang, m.value)} <span className="unit">µg/m³</span>
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
 
+function AirForecast({ lang, report, plan }: Readonly<Props>) {
+  const now = report.current.time;
+  // "Stay in" only when the plan says so; otherwise the dirtiest hours are just the least clean.
+  const stayIn = cautious(plan.concern);
+  return (
+    <div className="air-forecast">
+      <AirRibbon
+        lang={lang}
+        hours={report.hourly.slice(1)}
+        best={plan.bestWindow}
+        worst={plan.worstWindow}
+        stayIn={stayIn}
+      />
       <ul className="windows">
         <li className="window good">
-          <strong>{t(lang, bestLabels(plan.bestWindow, plan.avoidAllOutdoors).window)}:</strong> {plan.bestWindow ? windowText(lang, plan.bestWindow, current.time) : t(lang, 'noWindow')}
+          <strong>{t(lang, bestLabels(plan.bestWindow, plan.avoidAllOutdoors).window)}:</strong>{' '}
+          {plan.bestWindow ? windowText(lang, plan.bestWindow, now) : t(lang, 'noWindow')}
         </li>
         {plan.worstWindow && (
           <li className="window bad">
-            <strong>{t(lang, stayIn ? 'worstWindow' : 'worstWindowCalm')}:</strong> {windowText(lang, plan.worstWindow, current.time)}
+            <strong>{t(lang, stayIn ? 'worstWindow' : 'worstWindowCalm')}:</strong>{' '}
+            {windowText(lang, plan.worstWindow, now)}
           </li>
         )}
       </ul>
-      </div>
-      {plan.smogTrap && (
-        <p className="trap">
-          <strong>{t(lang, 'trapTitle')}</strong>{' '}
-          {t(lang, 'trapBody', {
-            when: spanLabel(plan.smogTrap, current.time)[lang],
-            wind: weatherFigure('wind', plan.smogTrap.avgWindKmh)[lang],
-            mixing: weatherFigure('mixing', plan.smogTrap.minMixingM)[lang],
-          })}
-        </p>
-      )}
-      <p className="note air-updated">
-        {t(lang, 'windowBasis')} {t(lang, 'updated')}: <time dateTime={current.time}>{current.time.replace('T', ' ')}</time>
-      </p>
-    </section>
+    </div>
+  );
+}
+
+function SmogTrap({ lang, trap, now }: Readonly<{ lang: Lang; trap: NonNullable<Plan['smogTrap']>; now: string }>) {
+  return (
+    <p className="trap">
+      <strong>{t(lang, 'trapTitle')}</strong>{' '}
+      {t(lang, 'trapBody', {
+        when: spanLabel(trap, now)[lang],
+        wind: weatherFigure('wind', trap.avgWindKmh)[lang],
+        mixing: weatherFigure('mixing', trap.minMixingM)[lang],
+      })}
+    </p>
   );
 }

@@ -26,8 +26,16 @@ const browser = await chromium.launch();
 const runs = [
   { name: 'desktop-light', options: { viewport: { width: 1366, height: 900 } }, search: 'Search' },
   { name: 'desktop-dark', options: { viewport: { width: 1366, height: 900 }, colorScheme: 'dark' }, search: 'Search' },
-  { name: 'mobile-light', options: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, search: 'Search' },
-  { name: 'mobile-hindi', options: { viewport: { width: 390, height: 844 }, isMobile: true, locale: 'hi-IN' }, search: 'खोजें' },
+  {
+    name: 'mobile-light',
+    options: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true },
+    search: 'Search',
+  },
+  {
+    name: 'mobile-hindi',
+    options: { viewport: { width: 390, height: 844 }, isMobile: true, locale: 'hi-IN' },
+    search: 'खोजें',
+  },
 ];
 
 for (const run of runs) {

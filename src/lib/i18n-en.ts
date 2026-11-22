@@ -48,8 +48,10 @@ export const en = {
   updated: 'Updated (local time)',
   mainPollutant: 'Main pollutant',
   trapTitle: 'Winter smog trap ahead.',
-  trapBody: '{when}: the wind averages {wind} and, at its lowest, the air mixes in a layer {mixing} deep, so smoke from traffic, cooking and burning stays at breathing height. Shut windows before it starts.',
-  locationLede: 'Saans reads live air quality for your area and turns it into a plan for your family: when to go out, how to keep the air at home cleaner, and which switches cut pollution the most.',
+  trapBody:
+    '{when}: the wind averages {wind} and, at its lowest, the air mixes in a layer {mixing} deep, so smoke from traffic, cooking and burning stays at breathing height. Shut windows before it starts.',
+  locationLede:
+    'Saans reads live air quality for your area and turns it into a plan for your family: when to go out, how to keep the air at home cleaner, and which switches cut pollution the most.',
   changePlace: 'Change place',
   locating: 'Finding your location…',
   householdHint: 'Your plan is tailored to these details. Edit them to change it.',
@@ -111,7 +113,8 @@ export const en = {
   community: 'Community action',
   sourceRemoved: 'Removes a smoke source',
   communityFigure: 'Community figure',
-  doseNote: 'Covers the outdoor smog you breathe on the commute, while exercising and at home. Removing indoor smoke sources cuts it further. It uses an adult breathing rate for everyone: children breathe less air per hour but more per kilogram of body weight.',
+  doseNote:
+    'Covers the outdoor smog you breathe on the commute, while exercising and at home. Removing indoor smoke sources cuts it further. It uses an adult breathing rate for everyone: children breathe less air per hour but more per kilogram of body weight.',
   searchError: 'Place search is not working right now. Please try again.',
   locationError: 'Could not get your location. Allow location access or search for your city.',
   impact: 'Impact',
@@ -126,7 +129,8 @@ export const en = {
   thinking: 'Writing your answer…',
   aiSummary: 'Personal summary',
   getSummary: 'Explain my plan',
-  aiNotConfigured: 'The assistant needs a Gemini API key. Add GEMINI_API_KEY to the .env file and restart the app (see README).',
+  aiNotConfigured:
+    'The assistant needs a Gemini API key. Add GEMINI_API_KEY to the .env file and restart the app (see README).',
   aiRateLimited: 'The free Gemini limit was reached for now. Please try again in a minute.',
   aiTooMany: 'That’s a lot of questions in one minute. Please wait a moment, then ask again.',
   aiError: 'The assistant could not answer. Please try again.',
@@ -161,7 +165,8 @@ export const en = {
   heating_coal: 'Coal / angithi',
   heating_wood: 'Wood fire',
   aiDailyLimit: 'You have asked a lot today. Please come back tomorrow for more answers.',
-  householdSample: 'This plan uses the sample household above, not yours yet. Edit it to make the plan fit your family.',
+  householdSample:
+    'This plan uses the sample household above, not yours yet. Edit it to make the plan fit your family.',
 } as const;
 
 export type MessageKey = keyof typeof en;

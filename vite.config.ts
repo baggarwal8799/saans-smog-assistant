@@ -18,11 +18,16 @@ export function apiMiddleware(env: Record<string, string>): Middleware {
     req.on('data', (c: Buffer) => {
       if (tooLarge) return;
       size += c.length;
-      if (size <= DEV_MAX_BODY) return void chunks.push(c);
+      if (size <= DEV_MAX_BODY) {
+        chunks.push(c);
+        return;
+      }
       // Stop buffering at once: an unbounded body would otherwise sit in memory until it ends.
       tooLarge = true;
       chunks.length = 0;
-      res.writeHead(413, { 'content-type': 'application/json', connection: 'close' }).end('{"error":"Request too large"}');
+      res
+        .writeHead(413, { 'content-type': 'application/json', connection: 'close' })
+        .end('{"error":"Request too large"}');
       req.resume();
     });
     req.on('end', () => {
@@ -35,24 +40,34 @@ export function apiMiddleware(env: Record<string, string>): Middleware {
         headers,
         ...(method === 'GET' || method === 'HEAD' ? {} : { body: Buffer.concat(chunks) }),
       });
-      void handleAssistant(request, {
-        GEMINI_API_KEY: env.GEMINI_API_KEY,
-        GEMINI_MODEL: env.GEMINI_MODEL,
-        MAX_AI_CALLS_PER_DAY: env.MAX_AI_CALLS_PER_DAY,
-        MAX_AI_REQUESTS_PER_CLIENT_PER_DAY: env.MAX_AI_REQUESTS_PER_CLIENT_PER_DAY,
-        UPSTASH_REDIS_REST_URL: env.UPSTASH_REDIS_REST_URL,
-        UPSTASH_REDIS_REST_TOKEN: env.UPSTASH_REDIS_REST_TOKEN,
-      }).then(async (r) => {
-        res.statusCode = r.status;
-        r.headers.forEach((v, k) => res.setHeader(k, v));
-        res.end(await r.text());
-      }).catch(() => {
-        // The handler answers every error itself; this only stops a dev-server crash leaving the request hanging.
-        res.statusCode = 500;
-        res.end('{"error":"error"}');
-      });
+      handleAssistant(request, serverEnv(env)).then(
+        (r) => send(res, r),
+        () => fail(res),
+      );
     });
   };
+}
+
+/** The settings the handler reads, taken from `.env`. */
+const serverEnv = (env: Record<string, string>) => ({
+  GEMINI_API_KEY: env.GEMINI_API_KEY,
+  GEMINI_MODEL: env.GEMINI_MODEL,
+  MAX_AI_CALLS_PER_DAY: env.MAX_AI_CALLS_PER_DAY,
+  MAX_AI_REQUESTS_PER_CLIENT_PER_DAY: env.MAX_AI_REQUESTS_PER_CLIENT_PER_DAY,
+  UPSTASH_REDIS_REST_URL: env.UPSTASH_REDIS_REST_URL,
+  UPSTASH_REDIS_REST_TOKEN: env.UPSTASH_REDIS_REST_TOKEN,
+});
+
+async function send(res: ServerResponse, r: Response): Promise<void> {
+  res.statusCode = r.status;
+  r.headers.forEach((v, k) => res.setHeader(k, v));
+  res.end(await r.text());
+}
+
+/** The handler answers every error itself; this only stops a dev-server crash leaving the request hanging. */
+function fail(res: ServerResponse): void {
+  res.statusCode = 500;
+  res.end('{"error":"error"}');
 }
 
 /** Serves /api/assistant locally (dev and preview) with the same handler Vercel runs in production. */
@@ -125,7 +140,7 @@ export default defineConfig(({ mode }) => {
         provider: 'v8',
         include: ['src/**/*.{ts,tsx}', 'api/**/*.ts', 'server/**/*.ts'],
         exclude: ['src/**/*.test.*', 'api/**/*.test.ts', 'server/**/*.test.ts', 'src/test/**', 'src/main.tsx'],
-        thresholds: { lines: 85, functions: 85, branches: 75, statements: 85 },
+        thresholds: { lines: 99, functions: 98, branches: 99, statements: 99 },
       },
     },
   };

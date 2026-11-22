@@ -11,7 +11,9 @@ export function mockNetwork(opts: { airFails?: boolean; assistant?: AssistantMoc
     const url = String(input);
     calls.push(url);
     if (url.includes('geocoding-api')) {
-      return jsonResponse({ results: [{ name: 'New Delhi', latitude: 28.61, longitude: 77.21, admin1: 'Delhi', country: 'India' }] });
+      return jsonResponse({
+        results: [{ name: 'New Delhi', latitude: 28.61, longitude: 77.21, admin1: 'Delhi', country: 'India' }],
+      });
     }
     if (url.includes('air-quality-api')) {
       return opts.airFails ? new Response('down', { status: 503 }) : jsonResponse(openMeteoPayload(10));

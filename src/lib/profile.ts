@@ -1,5 +1,5 @@
 import { MAX_COMMUTE_KM, clamp } from './impact.js';
-import { isIndia } from './plan/shared.js';
+import { isIndia } from './plan/place.js';
 import { COMMUTE_MODES, COOKING_FUELS, HEATING_TYPES, type Lang, type Place, type Profile } from './types.js';
 
 export const PROFILE_KEY = 'saans.profile.v1';
@@ -43,7 +43,9 @@ const SAMPLE_HOUSEHOLDS: Readonly<Record<'india' | 'elsewhere', Readonly<Profile
 export const DEFAULT_PROFILE: Readonly<Profile> = SAMPLE_HOUSEHOLDS.india;
 
 /** The sample household for a place's country (as the geocoder names it). */
-export const sampleProfile = (country: string | undefined): Profile => ({ ...SAMPLE_HOUSEHOLDS[isIndia(country) ? 'india' : 'elsewhere'] });
+export const sampleProfile = (country: string | undefined): Profile => ({
+  ...SAMPLE_HOUSEHOLDS[isIndia(country) ? 'india' : 'elsewhere'],
+});
 
 function oneOf<T extends string>(allowed: readonly T[], value: unknown, fallback: T): T {
   return allowed.includes(value as T) ? (value as T) : fallback;
@@ -77,10 +79,25 @@ export function sanitizeProfile(input: unknown): Profile {
   };
 }
 
-/** Storage can be missing or throw (private mode, blocked cookies); the app must work regardless. */
-export function loadProfile(storage: Storage | undefined = globalThis.localStorage): Profile {
+/**
+ * The storage to use, read inside each caller's try: `localStorage` can be missing (Node) or throw on access
+ * (blocked cookies), and either way the caller's catch falls back.
+ */
+const store = (storage: Storage | undefined): Storage => storage ?? globalThis.localStorage;
+
+/** The browser's language when there is one: Node 20 has no `navigator`, and some browsers no `language`. */
+function browserLang(): Lang {
   try {
-    const raw = storage?.getItem(PROFILE_KEY);
+    return navigator.language.startsWith('hi') ? 'hi' : 'en';
+  } catch {
+    return 'en';
+  }
+}
+
+/** Storage can be missing or throw (private mode, blocked cookies); the app must work regardless. */
+export function loadProfile(storage?: Storage): Profile {
+  try {
+    const raw = store(storage).getItem(PROFILE_KEY);
     return raw ? sanitizeProfile(JSON.parse(raw)) : { ...DEFAULT_PROFILE };
   } catch {
     return { ...DEFAULT_PROFILE };
@@ -88,30 +105,33 @@ export function loadProfile(storage: Storage | undefined = globalThis.localStora
 }
 
 /** True once the person has saved their own household; until then the plan is built on the sample one. */
-export function hasSavedProfile(storage: Storage | undefined = globalThis.localStorage): boolean {
+export function hasSavedProfile(storage?: Storage): boolean {
   try {
-    return (storage?.getItem(PROFILE_KEY) ?? null) !== null;
+    return store(storage).getItem(PROFILE_KEY) !== null;
   } catch {
     return false;
   }
 }
 
-export function saveProfile(profile: Profile, storage: Storage | undefined = globalThis.localStorage): void {
+export function saveProfile(profile: Profile, storage?: Storage): void {
   try {
-    storage?.setItem(PROFILE_KEY, JSON.stringify(profile));
+    store(storage).setItem(PROFILE_KEY, JSON.stringify(profile));
   } catch {
     /* non-essential convenience */
   }
 }
 
-export function loadPlace(storage: Storage | undefined = globalThis.localStorage): Place | null {
+// Written so NaN fails the check: Number() of a bad stored value must not pass as a coordinate.
+const withinAbs = (v: number, limit: number): boolean => Math.abs(v) <= limit;
+
+export function loadPlace(storage?: Storage): Place | null {
   try {
-    const raw = storage?.getItem(PLACE_KEY);
+    const raw = store(storage).getItem(PLACE_KEY);
     if (!raw) return null;
     const o = JSON.parse(raw) as Record<string, unknown>;
     const lat = Number(o.lat);
     const lon = Number(o.lon);
-    if (typeof o.name !== 'string' || !(Math.abs(lat) <= 90) || !(Math.abs(lon) <= 180)) return null;
+    if (typeof o.name !== 'string' || !withinAbs(lat, 90) || !withinAbs(lon, 180)) return null;
     const place: Place = { name: o.name.slice(0, 80), lat, lon };
     if (typeof o.region === 'string') place.region = o.region.slice(0, 80);
     if (typeof o.country === 'string') place.country = o.country.slice(0, 80);
@@ -121,27 +141,27 @@ export function loadPlace(storage: Storage | undefined = globalThis.localStorage
   }
 }
 
-export function savePlace(place: Place, storage: Storage | undefined = globalThis.localStorage): void {
+export function savePlace(place: Place, storage?: Storage): void {
   try {
-    storage?.setItem(PLACE_KEY, JSON.stringify(place));
+    store(storage).setItem(PLACE_KEY, JSON.stringify(place));
   } catch {
     /* non-essential convenience */
   }
 }
 
-export function loadLang(storage: Storage | undefined = globalThis.localStorage): Lang {
+export function loadLang(storage?: Storage): Lang {
   try {
-    const v = storage?.getItem(LANG_KEY);
+    const v = store(storage).getItem(LANG_KEY);
     if (v === 'hi' || v === 'en') return v;
   } catch {
     /* fall through */
   }
-  return globalThis.navigator?.language?.startsWith('hi') ? 'hi' : 'en';
+  return browserLang();
 }
 
-export function saveLang(lang: Lang, storage: Storage | undefined = globalThis.localStorage): void {
+export function saveLang(lang: Lang, storage?: Storage): void {
   try {
-    storage?.setItem(LANG_KEY, lang);
+    store(storage).setItem(LANG_KEY, lang);
   } catch {
     /* non-essential convenience */
   }

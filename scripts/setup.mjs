@@ -7,11 +7,14 @@ if (major < 20) {
   console.error(`Node ${process.versions.node} found; Node 20 or newer is required (see .nvmrc).`);
   process.exit(1);
 }
+// eslint-disable-next-line sonarjs/os-command -- only the two fixed setup commands below are run
 const run = (cmd) => execSync(cmd, { stdio: 'inherit' });
 run('npm ci');
 run('npx playwright install chromium');
 if (!existsSync('.env')) {
   copyFileSync('.env.example', '.env');
-  console.log('Created .env from .env.example. Add GEMINI_API_KEY for the AI assistant (free: https://aistudio.google.com/apikey).');
+  console.log(
+    'Created .env from .env.example. Add GEMINI_API_KEY for the AI assistant (free: https://aistudio.google.com/apikey).',
+  );
 }
 console.log('Setup done. Next: npm run dev');

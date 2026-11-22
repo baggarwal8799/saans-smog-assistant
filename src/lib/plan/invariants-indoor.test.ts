@@ -12,8 +12,8 @@ import { effectPercents, violations } from '../../test/planChecks';
 /** The sentence that credits shutting the windows, in either language. */
 const SHUT_WORKING = /Shut windows keep indoor PM2\.5[^.]*\.|बंद खिड़कियों से अंदर का PM2\.5[^।]*।/;
 
-describe('indoor cuts start from the household\'s current habit', () => {
-  it('no indoor tip claims a % cut that the household\'s habits already achieve', () => {
+describe("indoor cuts start from the household's current habit", () => {
+  it("no indoor tip claims a % cut that the household's habits already achieve", () => {
     let checked = 0;
     expect(
       violations((c) =>
@@ -24,13 +24,17 @@ describe('indoor cuts start from the household\'s current habit', () => {
             checked++;
             const cut = indoorCut(c.profile);
             out.push(
-              (cut <= 0 || r.impact.exposureCutPct !== cut) && `${r.id}: claims ${r.impact.exposureCutPct}% for shutting windows, habit leaves ${cut}%`,
+              (cut <= 0 || r.impact.exposureCutPct !== cut) &&
+                `${r.id}: claims ${r.impact.exposureCutPct}% for shutting windows, habit leaves ${cut}%`,
               ...effectPercents(working).map((p) => p !== cut && `${r.id}: "${p}%" in "${working}"`),
             );
           }
           // Moving someone indoors cuts from outdoor air to this home's shut-window air, purifier included.
           if (r.id === 'protect-vulnerable' || r.id === 'exercise-indoors') {
-            out.push(r.impact.exposureCutPct !== indoorCut(c.profile, 1) && `${r.id}: ${r.impact.exposureCutPct}% ≠ ${indoorCut(c.profile, 1)}%`);
+            out.push(
+              r.impact.exposureCutPct !== indoorCut(c.profile, 1) &&
+                `${r.id}: ${r.impact.exposureCutPct}% ≠ ${indoorCut(c.profile, 1)}%`,
+            );
           }
           return out;
         }),

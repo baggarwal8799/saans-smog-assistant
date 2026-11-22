@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { ungroundedNumbers } from './numbers';
-import { promptFor, summary } from './test-helpers';
+import { promptFor, summary } from '../../src/test/apiHelpers';
 
 describe('numbers: grounding', () => {
   const ctx = promptFor(summary());

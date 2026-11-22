@@ -5,7 +5,14 @@
  */
 import { describe, expect, it } from 'vitest';
 import { bestLabels, fineToGoOut } from '../concern';
-import { ACCESS_WALK_MIN_EACH_WAY, INDOOR_RATIO, TRANSIT_BREATHING, TRANSIT_EXPOSURE_RATIO, commuteDoseFactor, commuteHoursPerDay } from '../impact';
+import {
+  ACCESS_WALK_MIN_EACH_WAY,
+  INDOOR_RATIO,
+  TRANSIT_BREATHING,
+  TRANSIT_EXPOSURE_RATIO,
+  commuteDoseFactor,
+  commuteHoursPerDay,
+} from '../impact';
 import { t } from '../i18n';
 import { buildPlan } from '../recommend';
 import { averagePm25, findWindow, partOfDay } from '../windows';
@@ -13,7 +20,7 @@ import type { Recommendation, TimeWindow } from '../types';
 import { profile } from '../../test/fixtures';
 import { INDIA, airReport, type Case } from '../../test/scenarios';
 import { rec, texts, violations } from '../../test/planChecks';
-import { CHILD_MASK_NOTE } from './shared';
+import { CHILD_MASK_NOTE } from './copy/masks';
 
 /** The Moderate upper bound of the US EPA PM2.5 bands. */
 const MODERATE_MAX = 35.4;
@@ -34,9 +41,11 @@ function windowOf(c: Case, r: Recommendation): TimeWindow | null {
 
 describe('1. time-of-day words match the window', () => {
   it('names the part of day from the hours, in both languages', () => {
-    expect(['05:00', '11:00', '12:00', '16:00', '17:00', '19:00', '21:00', '02:00'].map((h) => partOfDay(`2026-11-17T${h}`).en)).toEqual([
-      'morning', 'morning', 'afternoon', 'afternoon', 'evening', 'evening', 'night', 'night',
-    ]);
+    expect(
+      ['05:00', '11:00', '12:00', '16:00', '17:00', '19:00', '21:00', '02:00'].map(
+        (h) => partOfDay(`2026-11-17T${h}`).en,
+      ),
+    ).toEqual(['morning', 'morning', 'afternoon', 'afternoon', 'evening', 'evening', 'night', 'night']);
     expect(partOfDay('2026-11-17T19:00').hi).toBe('शाम');
   });
 
@@ -65,15 +74,24 @@ describe('2. "best" only for air that is at most Moderate', () => {
         const labels = bestLabels(plan.bestWindow);
         const ui = [t(lang, labels.window), t(lang, 'windowBasis'), ...(plan.bestWindow ? [t(lang, labels.key)] : [])];
         const clean = plan.bestWindow !== null && plan.bestWindow.avgPm25 <= MODERATE_MAX;
-        const shown = [...ui.map((s) => ['ui', s]), ...plan.recommendations.flatMap((r) => texts(r).map((s) => [r.id, s]))];
-        return shown.map(([where, s]) => !clean && GOOD.test(s ?? '') && `${where}: "${GOOD.exec(s ?? '')?.[0]}" at ${plan.bestWindow?.avgPm25}`);
+        const shown = [
+          ...ui.map((s) => ['ui', s]),
+          ...plan.recommendations.flatMap((r) => texts(r).map((s) => [r.id, s])),
+        ];
+        return shown.map(
+          ([where, s]) =>
+            !clean && GOOD.test(s ?? '') && `${where}: "${GOOD.exec(s ?? '')?.[0]}" at ${plan.bestWindow?.avgPm25}`,
+        );
       }),
     ).toEqual([]);
   });
 
   it('the band test uses the EPA Moderate bound', () => {
     expect([fineToGoOut(35.4), fineToGoOut(35.5), fineToGoOut(67)]).toEqual([true, false, false]);
-    expect(bestLabels({ start: '', end: '', avgPm25: 67 })).toEqual({ window: 'bestWindowNeutral', key: 'keyBestNeutral' });
+    expect(bestLabels({ start: '', end: '', avgPm25: 67 })).toEqual({
+      window: 'bestWindowNeutral',
+      key: 'keyBestNeutral',
+    });
     expect(t('en', 'bestWindowNeutral')).toBe('Least polluted 2 hours, if you must go out');
   });
 });
@@ -83,7 +101,8 @@ function dirtyWindowPlan(lang: 'en' | 'hi') {
   const r = airReport({ aqi: 120, weather: 'none', startHour: 6, place: INDIA });
   const low = Math.min(...r.hourly.map((h) => h.pm25));
   // A flattened winter shape: the cleanest hours at 67 µg/m³ and indoors (× 0.6 of the day average) well below that.
-  const report = { ...r, current: { ...r.current, pm25: 30 }, hourly: r.hourly.map((h) => ({ ...h, pm25: 67 + (h.pm25 - low) / 2 })) };
+  const hourly = r.hourly.map((h) => ({ ...h, pm25: 67 + (h.pm25 - low) / 2 }));
+  const report = { ...r, current: { ...r.current, pm25: 30 }, hourly };
   return buildPlan(report, profile({ exerciseMinutes: 30 }), lang);
 }
 
@@ -108,7 +127,9 @@ describe('3. airing advice is consistent with indoor versus outdoor air', () => 
         const indoor = averagePm25(report.hourly, report.current.pm25) * INDOOR_RATIO.closed;
         const b = plan.bestWindow;
         const ok = b !== null && (b.avgPm25 <= indoor || b.avgPm25 <= MODERATE_MAX);
-        return plan.recommendations.flatMap((r) => texts(r).map((s) => WIDE.test(s) && !ok && `${r.id}: wide open at ${b?.avgPm25} vs indoor ${indoor}`));
+        return plan.recommendations.flatMap((r) =>
+          texts(r).map((s) => WIDE.test(s) && !ok && `${r.id}: wide open at ${b?.avgPm25} vs indoor ${indoor}`),
+        );
       }),
     ).toEqual([]);
   });
@@ -117,7 +138,12 @@ describe('3. airing advice is consistent with indoor versus outdoor air', () => 
     expect(
       violations((c) => {
         const v = rec(c, 'ventilate-smart');
-        return [v && !WIDE.test(v.detail) && v.impact.scope === 'in the air you let in' && 'brief airing claims a cleaner-air cut'];
+        return [
+          v &&
+            !WIDE.test(v.detail) &&
+            v.impact.scope === 'in the air you let in' &&
+            'brief airing claims a cleaner-air cut',
+        ];
       }),
     ).toEqual([]);
   });
@@ -127,8 +153,13 @@ describe('4-6. one mask truth, relevant pledges, honest commute exposure', () =>
   it('no text says children need masks, and the mask tip carries the shared child note', () => {
     expect(
       violations((c) => [
-        ...c.plan.recommendations.flatMap((r) => texts(r).map((s) => CHILD_NEEDS_MASK.test(s) && `${r.id}: children need masks`)),
-        c.profile.hasChildren && rec(c, 'n95') && !rec(c, 'n95')?.detail.includes(CHILD_MASK_NOTE[c.lang]) && 'n95 without the child note',
+        ...c.plan.recommendations.flatMap((r) =>
+          texts(r).map((s) => CHILD_NEEDS_MASK.test(s) && `${r.id}: children need masks`),
+        ),
+        c.profile.hasChildren &&
+          rec(c, 'n95') &&
+          !rec(c, 'n95')?.detail.includes(CHILD_MASK_NOTE[c.lang]) &&
+          'n95 without the child note',
       ]),
     ).toEqual([]);
   });
@@ -138,7 +169,9 @@ describe('4-6. one mask truth, relevant pledges, honest commute exposure', () =>
       violations((c) =>
         c.plan.concern !== 'low' || c.profile.burnsWaste
           ? []
-          : c.plan.recommendations.flatMap((r) => texts(r).map((s) => r.id !== 'community-plan' && PLEDGE.test(s) && `${r.id}: pledge`)),
+          : c.plan.recommendations.flatMap((r) =>
+              texts(r).map((s) => r.id !== 'community-plan' && PLEDGE.test(s) && `${r.id}: pledge`),
+            ),
       ),
     ).toEqual([]);
   });
@@ -147,11 +180,15 @@ describe('4-6. one mask truth, relevant pledges, honest commute exposure', () =>
     const ride = TRANSIT_EXPOSURE_RATIO.metro * TRANSIT_BREATHING.metro * commuteHoursPerDay('metro', 5);
     const walk = TRANSIT_EXPOSURE_RATIO.walk * TRANSIT_BREATHING.walk * ((2 * ACCESS_WALK_MIN_EACH_WAY) / 60);
     expect(commuteDoseFactor('metro', 5)).toBeCloseTo(ride + walk);
-    expect(commuteDoseFactor('walk', 5)).toBeCloseTo(TRANSIT_EXPOSURE_RATIO.walk * TRANSIT_BREATHING.walk * commuteHoursPerDay('walk', 5));
+    expect(commuteDoseFactor('walk', 5)).toBeCloseTo(
+      TRANSIT_EXPOSURE_RATIO.walk * TRANSIT_BREATHING.walk * commuteHoursPerDay('walk', 5),
+    );
     expect(
       violations((c) => {
         const tip = rec(c, 'commute-exposure');
-        return [tip && !tip.impact.explanation.includes(String(ACCESS_WALK_MIN_EACH_WAY)) && 'working omits the access walk'];
+        return [
+          tip && !tip.impact.explanation.includes(String(ACCESS_WALK_MIN_EACH_WAY)) && 'working omits the access walk',
+        ];
       }),
     ).toEqual([]);
   });

@@ -17,11 +17,16 @@ const MIME: Readonly<Record<string, string>> = {
   '.ico': 'image/x-icon',
 };
 
+export function pathOf(url: string): string {
+  const query = url.indexOf('?');
+  return query === -1 ? url : url.slice(0, query);
+}
+
 /** Resolves a URL path inside ROOT, or null if it would escape it (path traversal). */
 export function safePath(root: string, urlPath: string): string | null {
   let decoded: string;
   try {
-    decoded = decodeURIComponent(urlPath.split('?')[0] ?? '/');
+    decoded = decodeURIComponent(pathOf(urlPath));
   } catch {
     return null;
   }
@@ -33,7 +38,6 @@ const COMPRESSIBLE = new Set(['.html', '.js', '.css', '.svg', '.json', '.txt']);
 /** Compressed copies of static files, made once per file and encoding (the build output never changes). */
 const compressed = new Map<string, Buffer>();
 
-/** Brotli when the browser accepts it, else gzip, else none. */
 export function pickEncoding(acceptEncoding: string | undefined): 'br' | 'gzip' | null {
   const accepted = (acceptEncoding ?? '').toLowerCase();
   if (/\bbr\b/.test(accepted)) return 'br';
@@ -55,7 +59,12 @@ function compress(file: string, encoding: 'br' | 'gzip'): Buffer {
   return body;
 }
 
-export function serveFile(req: IncomingMessage, res: ServerResponse, file: string, headers: Record<string, string>): void {
+export function serveFile(
+  req: IncomingMessage,
+  res: ServerResponse,
+  file: string,
+  headers: Record<string, string>,
+): void {
   const ext = extname(file);
   const stat = statSync(file);
   const hashedAsset = file.includes(`${sep}assets${sep}`);

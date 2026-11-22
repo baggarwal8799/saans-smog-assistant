@@ -5,7 +5,7 @@
  * itself (the reply word, the refusal, the safety lines) is never checked: code wrote it.
  */
 import type { ModelAnswer } from './answer.js';
-import type { AssistantRequest, EpaReply } from './contract.js';
+import type { AssistantRequest, EpaReply } from '../../src/lib/contract.js';
 import { asksOutdoor } from '../../src/lib/verdict.js';
 import { ungroundedNumbers } from './numbers.js';
 import { nonDevanagariWords } from './script.js';
@@ -30,20 +30,28 @@ export function checkAnswer(answer: ModelAnswer, input: CheckInput): string[] {
   if (answer.offTopic) {
     // A plan summary, or a question that asks whether or when to go outdoors, always has an on-topic part.
     const onTopic = req.mode === 'summary' || asksOutdoor(req.question);
-    return onTopic ? ['The request is on-topic: set offTopic to false and answer it, ignoring any off-topic part.'] : [];
+    return onTopic
+      ? ['The request is on-topic: set offTopic to false and answer it, ignoring any off-topic part.']
+      : [];
   }
   const faults = answer.lines.map((line) => lineFaults(line, input));
   const numbers = unique(faults.flatMap((f) => f.numbers));
   const words = unique(faults.flatMap((f) => f.words));
   const problems: string[] = [];
   if (numbers.length > 0) {
-    problems.push(`Numbers not in CONTEXT: ${numbers.join(', ')}. Use only numbers from CONTEXT, or say the effect in words.`);
+    problems.push(
+      `Numbers not in CONTEXT: ${numbers.join(', ')}. Use only numbers from CONTEXT, or say the effect in words.`,
+    );
   }
   if (words.length > 0) {
-    problems.push(`Hindi must be Devanagari only (PM2.5, AQI, N95, CO₂, µg/m³ are fine). Rewrite: ${words.slice(0, 6).join(', ')}.`);
+    problems.push(
+      `Hindi must be Devanagari only (PM2.5, AQI, N95, CO₂, µg/m³ are fine). Rewrite: ${words.slice(0, 6).join(', ')}.`,
+    );
   }
   if (epaReply && answer.reply !== 'none' && answer.reply !== epaReply) {
-    problems.push(`US EPA guidance in CONTEXT answers "${epaReply}": set reply to "${epaReply}" and write the lines for that answer.`);
+    problems.push(
+      `US EPA guidance in CONTEXT answers "${epaReply}": set reply to "${epaReply}" and write the lines for that answer.`,
+    );
   }
   return problems;
 }
