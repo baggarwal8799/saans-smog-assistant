@@ -1,13 +1,19 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { INDIA, airReport } from '../test/scenarios';
-import { axeViolations } from '../test/network';
-import type { Lang, TimeWindow } from '../lib/types';
-import { AirRibbon } from './AirRibbon';
+
+import type { Lang, TimeWindow } from '../../core/types.js';
+import { axeViolations } from '../../test/network.js';
+import { airReport, INDIA } from '../../test/scenarios.js';
+import { LanguageContext } from '../hooks/useCurrentLang.js';
+import { AirRibbon } from './AirRibbon.js';
 
 const hours = airReport({ aqi: 120, weather: 'none', startHour: 6, place: INDIA }).hourly.slice(1);
 const show = (lang: Lang, best: TimeWindow | null) =>
-  render(<AirRibbon lang={lang} hours={hours} best={best} worst={null} stayIn={false} />);
+  render(
+    <LanguageContext value={lang}>
+      <AirRibbon hours={hours} best={best} worst={null} stayIn={false} />
+    </LanguageContext>,
+  );
 
 describe('AirRibbon', () => {
   it('gives every hour as text in a keyboard-reachable "Hourly numbers" table, axe-clean', async () => {

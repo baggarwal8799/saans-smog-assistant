@@ -1,15 +1,21 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { DELHI, profile } from '../test/fixtures';
-import { AirRibbon } from './AirRibbon';
-import { toBlocks } from './AnswerText';
-import { LocationPicker } from './LocationPicker';
-import { householdLine } from './ProfileForm';
+
+import { DELHI, profile } from '../../test/fixtures.js';
+import { LanguageContext } from '../hooks/useCurrentLang.js';
+import { AirRibbon } from './AirRibbon.js';
+import { toBlocks } from './AnswerText.js';
+import { LocationPicker } from './LocationPicker.js';
+import { householdLine } from './ProfileForm.js';
 
 describe('AirRibbon with no forecast', () => {
   it('renders nothing rather than an empty chart', () => {
-    const { container } = render(<AirRibbon lang="en" hours={[]} best={null} worst={null} stayIn={false} />);
+    const { container } = render(
+      <LanguageContext value="en">
+        <AirRibbon hours={[]} best={null} worst={null} stayIn={false} />
+      </LanguageContext>,
+    );
     expect(container).toBeEmptyDOMElement();
   });
 });
@@ -39,7 +45,11 @@ describe('householdLine', () => {
 
 describe('LocationPicker while changing a chosen place', () => {
   it('shows the search with a compact heading and no opening lede', async () => {
-    render(<LocationPicker lang="en" selected={DELHI} onSelect={vi.fn()} />);
+    render(
+      <LanguageContext value="en">
+        <LocationPicker selected={DELHI} onSelect={vi.fn()} />
+      </LanguageContext>,
+    );
     await userEvent.setup().click(screen.getByRole('button', { name: 'Change place' }));
     const heading = screen.getByRole('heading', { name: 'How’s the air where you are?' });
     expect(heading).toHaveClass('locate-title', 'compact');

@@ -1,36 +1,34 @@
-import { useState } from 'react';
-import { commuteKey, cookingKey, heatingKey, t, type MessageKey } from '../lib/i18n';
-import { MAX_COMMUTE_KM } from '../lib/impact';
-import { sanitizeProfile } from '../lib/profile';
-import { COMMUTE_MODES, COOKING_FUELS, HEATING_TYPES, type Lang, type Profile } from '../lib/types';
+import { type ReactElement, useState } from 'react';
+
+import { commuteKey, cookingKey, heatingKey, type MessageKey, t } from '../../core/i18n.js';
+import { MAX_COMMUTE_KM } from '../../core/impact.js';
+import { EXERCISE_MINUTES_RANGE, HOUSEHOLD_SIZE_RANGE, sanitizeProfile } from '../../core/profile.js';
+import { COMMUTE_MODES, COOKING_FUELS, HEATING_TYPES, type Lang, type Profile } from '../../core/types.js';
+import { useCurrentLang } from '../hooks/useCurrentLang.js';
 
 interface Props {
-  lang: Lang;
   profile: Profile;
   /** Prefix for field ids; the form itself gets `${base}-form`, which the toggle button controls. */
   base: string;
-  /** The id of the "saved on this device" note that describes the form. */
   describedBy: string;
   onChange: (profile: Profile) => void;
 }
 
-type BoolKey = 'hasChildren' | 'hasElderly' | 'hasRespiratory' | 'hasPurifier' | 'burnsWaste';
+const BOOLS = ['hasChildren', 'hasElderly', 'hasRespiratory', 'hasPurifier', 'burnsWaste'] as const;
 type NumKey = Extract<keyof Profile & MessageKey, 'householdSize' | 'commuteKm' | 'exerciseMinutes'>;
 
-/** 'byMode': the distance box takes its bound from the chosen commute mode (commuteLimit). */
+/** 'byMode': the distance box takes its bound from the chosen commute mode. */
 const NUMBERS: readonly { key: NumKey; min: number; max: number | 'byMode'; step: number }[] = [
-  { key: 'householdSize', min: 1, max: 20, step: 1 },
+  { key: 'householdSize', ...HOUSEHOLD_SIZE_RANGE, step: 1 },
   { key: 'commuteKm', min: 0, max: 'byMode', step: 1 },
-  { key: 'exerciseMinutes', min: 0, max: 240, step: 5 },
+  { key: 'exerciseMinutes', ...EXERCISE_MINUTES_RANGE, step: 5 },
 ];
-/** The distance box follows the per-mode bound sanitizeProfile applies, and says what it is. */
+/** The same per-mode bound the saved household is clamped to, so the box and the plan agree. */
 function commuteLimit(lang: Lang, p: Profile): { max: number; hint: string } {
   const max = MAX_COMMUTE_KM[p.commuteMode];
   const mode = t(lang, commuteKey(p.commuteMode));
   return { max, hint: t(lang, 'commuteKmHint', { max, mode: lang === 'en' ? mode.toLowerCase() : mode }) };
 }
-
-const BOOLS: readonly BoolKey[] = ['hasChildren', 'hasElderly', 'hasRespiratory', 'hasPurifier', 'burnsWaste'];
 
 interface NumberFieldProps {
   id: string;
@@ -39,8 +37,7 @@ interface NumberFieldProps {
   min: number;
   max: number;
   step: number;
-  /** A short line under the box, e.g. the distance limit for the chosen mode. */
-  hint?: string;
+  hint?: string | undefined;
   onCommit: (value: number) => void;
 }
 
@@ -86,18 +83,17 @@ interface SelectFieldProps<T extends string> {
   onChange: (value: T) => void;
 }
 
-function SelectField<T extends string>({
-  id,
-  label,
-  value,
-  options,
-  optionLabel,
-  onChange,
-}: Readonly<SelectFieldProps<T>>) {
+function SelectField<T extends string>(props: Readonly<SelectFieldProps<T>>) {
+  const { id, label, value, options, optionLabel, onChange } = props;
+  // The DOM types the value as any string, so match it to an option rather than cast.
+  const choose = (v: string) => {
+    const picked = options.find((o) => o === v);
+    if (picked !== undefined) onChange(picked);
+  };
   return (
     <div className="field">
       <label htmlFor={id}>{label}</label>
-      <select id={id} value={value} onChange={(e) => onChange(e.target.value as T)}>
+      <select id={id} value={value} onChange={(e) => choose(e.target.value)}>
         {options.map((o) => (
           <option key={o} value={o}>
             {optionLabel(o)}
@@ -109,34 +105,41 @@ function SelectField<T extends string>({
 }
 
 interface PartProps {
-  lang: Lang;
   profile: Profile;
   id: (k: string) => string;
   update: (patch: Partial<Profile>) => void;
 }
 
-function NumberFields({ lang, profile, id, update }: Readonly<PartProps>) {
+/** A household that works from home has no commute, so its distance box is left out. */
+const shownNumbers = (p: Profile) => NUMBERS.filter(({ key }) => !(key === 'commuteKm' && p.commuteMode === 'wfh'));
+
+const boundOf = (lang: Lang, p: Profile, max: number | 'byMode'): { max: number; hint?: string } =>
+  max === 'byMode' ? commuteLimit(lang, p) : { max };
+
+function NumberFields({ profile, id, update }: Readonly<PartProps>) {
+  const lang = useCurrentLang();
+  const fields = shownNumbers(profile).map((field) => ({ ...field, ...boundOf(lang, profile, field.max) }));
   return (
     <>
-      {NUMBERS.filter(({ key }) => !(key === 'commuteKm' && profile.commuteMode === 'wfh')).map(
-        ({ key, min, max, step }) => (
-          <NumberField
-            key={key}
-            id={id(key)}
-            label={t(lang, key)}
-            value={profile[key]}
-            min={min}
-            {...(max === 'byMode' ? commuteLimit(lang, profile) : { max })}
-            step={step}
-            onCommit={(v) => update({ [key]: v })}
-          />
-        ),
-      )}
+      {fields.map(({ key, min, max, hint, step }) => (
+        <NumberField
+          key={key}
+          id={id(key)}
+          label={t(lang, key)}
+          value={profile[key]}
+          min={min}
+          max={max}
+          hint={hint}
+          step={step}
+          onCommit={(v) => update({ [key]: v })}
+        />
+      ))}
     </>
   );
 }
 
-function HouseholdChecks({ lang, profile, id, update }: Readonly<PartProps>) {
+function HouseholdChecks({ profile, id, update }: Readonly<PartProps>) {
+  const lang = useCurrentLang();
   return (
     <fieldset className="checks">
       <legend className="visually-hidden">{t(lang, 'profileHeading')}</legend>
@@ -155,16 +158,14 @@ function HouseholdChecks({ lang, profile, id, update }: Readonly<PartProps>) {
   );
 }
 
-/**
- * The household editor. It is its own chunk, loaded only when someone opens "Edit household", because most visits
- * read the plan for the sample or saved household and never change it.
- */
-export function ProfileEditor({ lang, profile, base, describedBy, onChange }: Readonly<Props>) {
+/** Its own chunk, loaded on "Edit household": most visits read the plan and never change the household. */
+export function ProfileEditor({ profile, base, describedBy, onChange }: Readonly<Props>): ReactElement {
+  const lang = useCurrentLang();
   const update = (patch: Partial<Profile>) => onChange(sanitizeProfile({ ...profile, ...patch }));
   const id = (k: string) => `${base}-${k}`;
   return (
     <form id={id('form')} className="grid" onSubmit={(e) => e.preventDefault()} aria-describedby={describedBy}>
-      <NumberFields lang={lang} profile={profile} id={id} update={update} />
+      <NumberFields profile={profile} id={id} update={update} />
 
       <SelectField
         id={id('commute')}
@@ -193,7 +194,7 @@ export function ProfileEditor({ lang, profile, base, describedBy, onChange }: Re
         onChange={(heating) => update({ heating })}
       />
 
-      <HouseholdChecks lang={lang} profile={profile} id={id} update={update} />
+      <HouseholdChecks profile={profile} id={id} update={update} />
     </form>
   );
 }

@@ -1,9 +1,10 @@
-import { lazy, type ComponentType } from 'react';
-import { t } from '../lib/i18n';
-import type { Lang } from '../lib/types';
+import { type ComponentType, lazy, type LazyExoticComponent } from 'react';
 
-/** Shown in place of a part whose chunk could not be fetched (the connection dropped after the first load). */
-function PartUnavailable({ lang }: Readonly<{ lang: Lang }>) {
+import { t } from '../../core/i18n.js';
+import { useCurrentLang } from '../hooks/useCurrentLang.js';
+
+function PartUnavailable() {
+  const lang = useCurrentLang();
   return (
     <p role="alert" className="error">
       {t(lang, 'partFailed')}
@@ -11,16 +12,16 @@ function PartUnavailable({ lang }: Readonly<{ lang: Lang }>) {
   );
 }
 
-/**
- * React.lazy for a component chunk. A failed fetch renders PartUnavailable instead of throwing: there is no error
- * boundary above these parts, and a thrown chunk error would blank the whole page rather than one section.
- */
-export function lazyPart<P extends { lang: Lang }>(load: () => Promise<ComponentType<P>>) {
+/** React.lazy, but a failed chunk fetch renders PartUnavailable instead of throwing: one section lost, not the page. */
+export function lazyPart<P extends object>(
+  load: () => Promise<ComponentType<P>>,
+): LazyExoticComponent<ComponentType<P>> {
+  const fallback: ComponentType<P> = PartUnavailable;
   return lazy(async () => {
     try {
       return { default: await load() };
     } catch {
-      return { default: PartUnavailable as ComponentType<P> };
+      return { default: fallback };
     }
   });
 }

@@ -1,12 +1,14 @@
-import { useState } from 'react';
-import { pm25Level } from '../lib/aqi';
-import { bestLabels } from '../lib/concern';
-import { formatHour } from '../lib/windows';
-import { formatNumber, t } from '../lib/i18n';
-import type { HourPoint, Lang, TimeWindow } from '../lib/types';
+import { type ReactElement, useState } from 'react';
+
+import { pm25Level } from '../../core/aqi.js';
+import { formatNumber, t } from '../../core/i18n.js';
+import { isoHour } from '../../core/isoTime.js';
+import type { HourPoint, TimeWindow } from '../../core/types.js';
+import { formatHour } from '../../core/windows.js';
+import { useCurrentLang } from '../hooks/useCurrentLang.js';
+import { bestLabels } from '../lib/windowLabels.js';
 
 interface Props {
-  lang: Lang;
   hours: readonly HourPoint[];
   best: TimeWindow | null;
   worst: TimeWindow | null;
@@ -21,11 +23,9 @@ function markFor(time: string, best: TimeWindow | null, worst: TimeWindow | null
   return inWindow(time, worst) ? 'worst' : '';
 }
 
-/**
- * The next 24 hours as a row of bars, one per hour: height is PM2.5, colour is its health band.
- * The bars are hidden from screen readers; the "Hourly numbers" table below gives every value as text.
- */
-export function AirRibbon({ lang, hours, best, worst, stayIn }: Readonly<Props>) {
+/** The bars are hidden from screen readers; the "Hourly numbers" table below gives every value as text. */
+export function AirRibbon({ hours, best, worst, stayIn }: Readonly<Props>): ReactElement | null {
+  const lang = useCurrentLang();
   // The table is built only once someone opens it: most visits never do, and it is 24 rows of DOM. It is too small
   // to be worth its own chunk (a request would cost more than its bytes), so only the rendering is deferred.
   const [tableOpen, setTableOpen] = useState(false);
@@ -44,7 +44,7 @@ export function AirRibbon({ lang, hours, best, worst, stayIn }: Readonly<Props>)
       </div>
       <details className="ribbon-table" onToggle={(e) => setTableOpen(e.currentTarget.open)}>
         <summary>{t(lang, 'hourlyNumbers')}</summary>
-        {tableOpen && <HourlyTable lang={lang} day={day} />}
+        {tableOpen && <HourlyTable day={day} />}
       </details>
     </figure>
   );
@@ -64,7 +64,7 @@ function RibbonBars({ day, best, worst }: BarsProps) {
               className={`fill lvl-${pm25Level(h.pm25)}`}
               style={{ height: `${Math.max(8, (h.pm25 / max) * 100)}%` }}
             />
-            <span className="tick">{Number(h.time.slice(11, 13)) % 3 === 0 ? h.time.slice(11, 13) : ''}</span>
+            <span className="tick">{Number(isoHour(h.time)) % 3 === 0 ? isoHour(h.time) : ''}</span>
           </div>
         );
       })}
@@ -72,7 +72,8 @@ function RibbonBars({ day, best, worst }: BarsProps) {
   );
 }
 
-function HourlyTable({ lang, day }: Readonly<{ lang: Lang; day: readonly HourPoint[] }>) {
+function HourlyTable({ day }: Readonly<{ day: readonly HourPoint[] }>) {
+  const lang = useCurrentLang();
   return (
     <table>
       <thead>

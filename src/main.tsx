@@ -1,8 +1,3 @@
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
-import { App } from './App';
-import { loadDictionary } from './lib/i18n';
-import { loadLang } from './lib/profile';
 // Weight files, not subset files: only these carry unicode-range, so English pages skip the Devanagari woff2s.
 import '@fontsource/baloo-2/600.css';
 import '@fontsource/baloo-2/800.css';
@@ -19,6 +14,14 @@ import './styles/plan.css';
 import './styles/rows.css';
 import './styles/loading.css';
 
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+
+import { loadDictionary } from '../core/i18n.js';
+import { App } from './App.js';
+import { ErrorBoundary } from './components/ErrorBoundary.js';
+import { loadLang } from './lib/storage.js';
+
 // Hindi users get Hindi from the first frame: the first render waits for the Hindi chunk, so English never flashes.
 // If it cannot load (offline), the page starts in English.
 const savedLang = loadLang();
@@ -31,7 +34,9 @@ const mount = root;
 void ready.then(() => {
   createRoot(mount).render(
     <StrictMode>
-      <App />
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
     </StrictMode>,
   );
 });

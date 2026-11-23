@@ -1,5 +1,6 @@
-import { expect, test, type Page } from '@playwright/test';
-import { expectNoA11yViolations, mockApis, openHousehold, pickDelhi } from './mocks';
+import { expect, type Page, test } from '@playwright/test';
+
+import { expectNoA11yViolations, mockApis, openHousehold, pickDelhi } from './mocks.js';
 
 const cspViolations = new WeakMap<Page, string[]>();
 

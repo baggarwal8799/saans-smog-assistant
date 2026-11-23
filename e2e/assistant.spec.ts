@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
-import { expectNoA11yViolations, mockApis, mockAssistant, pickDelhi } from './mocks';
+
+import { expectNoA11yViolations, mockApis, mockAssistant, pickDelhi } from './mocks.js';
 
 test('a successful answer renders as a paragraph plus a real list, and stays accessible', async ({ page }) => {
   await mockApis(page);

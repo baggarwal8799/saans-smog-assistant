@@ -1,17 +1,20 @@
 import { configure, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { App } from './App';
-import { AUTO_SUMMARY_DELAY_MS } from './hooks/useAssistant';
-import { clearAirCache } from './lib/aqi';
-import { PLACE_KEY } from './lib/profile';
-import { DELHI, jsonResponse, openMeteoPayload } from './test/fixtures';
-import { mockNetwork } from './test/network';
+
+import { resetAirClient } from '../test/browserAir.js';
+import { DELHI, jsonResponse, openMeteoPayload } from '../test/fixtures.js';
+import { mockNetwork } from '../test/network.js';
+import { App } from './App.js';
+import { AUTO_SUMMARY_DELAY_MS } from './hooks/useAssistant.js';
+import { PLACE_KEY } from './lib/storage.js';
+
+vi.mock('./lib/browserAir.js', () => import('../test/browserAir.js'));
 
 // The automatic summary waits for the plan to settle (AUTO_SUMMARY_DELAY_MS), so give async queries room for it.
 configure({ asyncUtilTimeout: 4000 });
 
-beforeEach(() => clearAirCache());
+beforeEach(resetAirClient);
 afterEach(() => vi.unstubAllGlobals());
 
 describe('App: Ask Saans', () => {

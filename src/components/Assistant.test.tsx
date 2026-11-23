@@ -1,15 +1,15 @@
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import * as client from '../lib/assistantClient';
-import { DELHI, profile } from '../test/fixtures';
-import { AUTO_SUMMARY_DELAY_MS, autoSummaryAllowed } from '../hooks/useAssistant';
-import { Assistant } from './Assistant';
 
-vi.mock('../lib/assistantClient', async (importOriginal) => ({
-  ...(await importOriginal<typeof client>()),
-  askAssistant: vi.fn(async ({ mode }: { mode: string }) => ({ text: `Answer for ${mode}` })),
-}));
+import { withInstantAnswers } from '../../test/assistantClient.js';
+import { DELHI, profile } from '../../test/fixtures.js';
+import { AUTO_SUMMARY_DELAY_MS, autoSummaryAllowed } from '../hooks/useAssistant.js';
+import { LanguageContext } from '../hooks/useCurrentLang.js';
+import * as client from '../lib/assistantClient.js';
+import { Assistant } from './Assistant.js';
+
+vi.mock('../lib/assistantClient.js', (importOriginal) => withInstantAnswers(importOriginal));
 
 const ask = vi.mocked(client.askAssistant);
 
@@ -23,10 +23,13 @@ function setSaveData(saveData: boolean | undefined) {
   });
 }
 
-/** Renders with the automatic summary on, then lets its delay pass. */
 async function mountAndWait() {
   const onAutoSummary = vi.fn();
-  render(<Assistant lang="en" place={DELHI} profile={profile()} autoSummary onAutoSummary={onAutoSummary} />);
+  render(
+    <LanguageContext value="en">
+      <Assistant place={DELHI} profile={profile()} autoSummary onAutoSummary={onAutoSummary} />
+    </LanguageContext>,
+  );
   await act(() => vi.advanceTimersByTimeAsync(AUTO_SUMMARY_DELAY_MS + 50));
   return onAutoSummary;
 }
@@ -82,7 +85,11 @@ describe('the automatic summary', () => {
 describe('conversation history', () => {
   it('holds only typed questions, never the "Explain my plan" request', async () => {
     const user = userEvent.setup();
-    render(<Assistant lang="en" place={DELHI} profile={profile()} />);
+    render(
+      <LanguageContext value="en">
+        <Assistant place={DELHI} profile={profile()} />
+      </LanguageContext>,
+    );
     await user.click(screen.getByRole('button', { name: 'Explain my plan' }));
     await screen.findByText('Answer for summary');
     await user.type(screen.getByLabelText('Your question'), 'Can my kids play outside?');

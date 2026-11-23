@@ -14,10 +14,9 @@ test-results/
 .playwright-mcp/
 screenshots/
 dist-server/
-demo/
+# The recorded videos (root only: scripts/demo/ is source code)
+/demo/
 
-# Claude Code pointer (AGENTS.md is the shared guide)
+# Local-only notes, never committed
 CLAUDE.md
-
-# Private submission answers and LinkedIn draft (never published)
 SUBMISSION-NOTES.md

@@ -1,12 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { hasSavedProfile, loadProfile, sampleProfile, saveProfile } from '../lib/profile';
-import type { Place, Profile } from '../lib/types';
+
+import { sampleProfile } from '../../core/profile.js';
+import type { Place, Profile } from '../../core/types.js';
+import { hasSavedProfile, loadProfile, saveProfile } from '../lib/storage.js';
+
+interface Household {
+  household: Profile;
+  sample: boolean;
+  editProfile: (p: Profile) => void;
+}
 
 /**
- * The household the plan is built for. Until the person edits it, the plan says it is built on a sample one, and
- * nothing is stored. The sample household fits the country: an LPG cylinder in Delhi, piped gas in Los Angeles.
+ * Until the person edits it, the plan says it is built on a sample household, and nothing is stored. The sample fits
+ * the country: an LPG cylinder in Delhi, piped gas in Los Angeles.
  */
-export function useHousehold(country: Place['country']) {
+export function useHousehold(country: Place['country']): Household {
   const [profile, setProfile] = useState<Profile>(loadProfile);
   const [sample, setSample] = useState(() => !hasSavedProfile());
   const editProfile = useCallback((p: Profile): void => {

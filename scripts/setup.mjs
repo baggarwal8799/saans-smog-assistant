@@ -1,3 +1,4 @@
+// @ts-check
 // One-command setup on any machine: installs dependencies, the Playwright browser, and a local .env.
 import { execSync } from 'node:child_process';
 import { copyFileSync, existsSync } from 'node:fs';
@@ -8,7 +9,7 @@ if (major < 20) {
   process.exit(1);
 }
 // eslint-disable-next-line sonarjs/os-command -- only the two fixed setup commands below are run
-const run = (cmd) => execSync(cmd, { stdio: 'inherit' });
+const run = (/** @type {string} */ cmd) => execSync(cmd, { stdio: 'inherit' });
 run('npm ci');
 run('npx playwright install chromium');
 if (!existsSync('.env')) {

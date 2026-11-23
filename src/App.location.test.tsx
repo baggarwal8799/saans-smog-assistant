@@ -1,12 +1,15 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { App } from './App';
-import { clearAirCache } from './lib/aqi';
-import { jsonResponse, openMeteoPayload } from './test/fixtures';
-import { mockNetwork } from './test/network';
 
-beforeEach(() => clearAirCache());
+import { resetAirClient } from '../test/browserAir.js';
+import { jsonResponse, openMeteoPayload } from '../test/fixtures.js';
+import { mockNetwork } from '../test/network.js';
+import { App } from './App.js';
+
+vi.mock('./lib/browserAir.js', () => import('../test/browserAir.js'));
+
+beforeEach(resetAirClient);
 afterEach(() => vi.unstubAllGlobals());
 
 describe('App: location', () => {
@@ -31,7 +34,7 @@ describe('App: location', () => {
     expect(screen.queryByText(/My location/)).not.toBeInTheDocument();
     unmount();
     localStorage.clear();
-    clearAirCache();
+    resetAirClient();
 
     fetchMock.mockImplementation(async (input: RequestInfo | URL) =>
       String(input).includes('air-quality-api')

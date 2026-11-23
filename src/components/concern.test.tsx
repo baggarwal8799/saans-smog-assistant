@@ -1,19 +1,21 @@
 import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { cautious } from '../lib/concern';
-import { CONCERN_LEVELS } from '../lib/types';
-import { CAUTION } from '../test/planChecks';
-import { cases, type Case } from '../test/scenarios';
-import { AirNow } from './AirNow';
-import { PlanView } from './PlanView';
+
+import { cautious } from '../../core/concern.js';
+import { CONCERN_LEVELS } from '../../core/types.js';
+import { CAUTION } from '../../test/planChecks.js';
+import { type Case, cases } from '../../test/scenarios.js';
+import { LanguageContext } from '../hooks/useCurrentLang.js';
+import { AirNow } from './AirNow.js';
+import { PlanView } from './PlanView.js';
 
 /** All the text the air tile and the plan put in the DOM, collapsed rows and "How we worked this out" included. */
 function domText(c: Case): string {
   const { container, unmount } = render(
-    <>
-      <AirNow lang={c.lang} report={c.report} plan={c.plan} />
-      <PlanView lang={c.lang} plan={c.plan} />
-    </>,
+    <LanguageContext value={c.lang}>
+      <AirNow report={c.report} plan={c.plan} />
+      <PlanView plan={c.plan} />
+    </LanguageContext>,
   );
   const text = container.textContent;
   unmount();

@@ -1,5 +1,6 @@
-import { expect, test, type Page } from '@playwright/test';
-import { mockApis, openHousehold, pickDelhi } from './mocks';
+import { expect, type Page, test } from '@playwright/test';
+
+import { mockApis, openHousehold, pickDelhi } from './mocks.js';
 
 // The first load carries only what first paint needs. Each lazy part must arrive when, and only when, the person
 // does the thing that needs it, so the work stays proportional to what they do.

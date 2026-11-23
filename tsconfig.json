@@ -19,5 +19,16 @@
     "noEmit": true,
     "types": ["node", "vitest/globals"]
   },
-  "include": ["src", "api", "server", "e2e", "scripts", "vite.config.ts", "playwright.config.ts"]
+  "include": [
+    "src",
+    "core",
+    "test",
+    "api",
+    "backend",
+    "server",
+    "e2e",
+    "scripts",
+    "vite.config.ts",
+    "playwright.config.ts"
+  ]
 }

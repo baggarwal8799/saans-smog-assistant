@@ -1,22 +1,21 @@
-import { Suspense, useId, useState } from 'react';
-import { commuteKey, cookingKey, heatingKey, t, tn } from '../lib/i18n';
-import type { Lang, Profile } from '../lib/types';
-import { lazyPart } from './lazyPart';
-import { FieldsSkeleton } from './Skeleton';
+import { type ReactElement, Suspense, useId, useState } from 'react';
+
+import { commuteKey, cookingKey, heatingKey, t, tn } from '../../core/i18n.js';
+import type { Lang, Profile } from '../../core/types.js';
+import { useCurrentLang } from '../hooks/useCurrentLang.js';
+import { lazyPart } from './lazyPart.js';
+import { FieldsSkeleton } from './Skeleton.js';
 
 // The editor is fetched on first use, and already on hover or focus of "Edit household", so a click rarely waits.
-const loadEditor = () => import('./ProfileEditor');
+const loadEditor = () => import('./ProfileEditor.js');
 const ProfileEditor = lazyPart(() => loadEditor().then((m) => m.ProfileEditor));
 
 interface Props {
-  lang: Lang;
   profile: Profile;
-  /** True while the household is the sample one the app starts with. */
   sample?: boolean;
   onChange: (profile: Profile) => void;
 }
 
-/** "4 people, children, car 10 km, LPG cylinder, no heating": what the plan currently assumes. */
 export function householdLine(lang: Lang, p: Profile): string {
   const parts = [
     tn(lang, 'peopleCount', p.householdSize),
@@ -35,7 +34,8 @@ const prefetch = (): void => {
   loadEditor().catch(() => undefined);
 };
 
-export function ProfileForm({ lang, profile, sample = false, onChange }: Readonly<Props>) {
+export function ProfileForm({ profile, sample = false, onChange }: Readonly<Props>): ReactElement {
+  const lang = useCurrentLang();
   const base = useId();
   const [editing, setEditing] = useState(false);
   const id = (k: string) => `${base}-${k}`;
@@ -60,22 +60,29 @@ export function ProfileForm({ lang, profile, sample = false, onChange }: Readonl
       {!editing && (
         <p className={sample ? 'note sample-note' : 'note'}>{t(lang, sample ? 'householdSample' : 'householdHint')}</p>
       )}
-      {editing && (
-        <Suspense
-          fallback={
-            // Holds the form's id while it loads, so the button never controls a missing element.
-            <div id={id('form')} role="status" aria-busy="true">
-              <span className="visually-hidden">{t(lang, 'loadingForm')}</span>
-              <FieldsSkeleton />
-            </div>
-          }
-        >
-          <ProfileEditor lang={lang} profile={profile} base={base} describedBy={id('saved')} onChange={onChange} />
-        </Suspense>
-      )}
+      {editing && <EditorPanel profile={profile} base={base} onChange={onChange} />}
       <p id={id('saved')} className="note">
         {t(lang, 'profileSaved')}
       </p>
     </section>
+  );
+}
+
+type EditorPanelProps = Pick<Props, 'profile' | 'onChange'> & { base: string };
+
+function EditorPanel({ profile, base, onChange }: Readonly<EditorPanelProps>) {
+  const lang = useCurrentLang();
+  return (
+    <Suspense
+      fallback={
+        // Holds the form's id while it loads, so the button never controls a missing element.
+        <div id={`${base}-form`} role="status" aria-busy="true">
+          <span className="visually-hidden">{t(lang, 'loadingForm')}</span>
+          <FieldsSkeleton />
+        </div>
+      }
+    >
+      <ProfileEditor profile={profile} base={base} describedBy={`${base}-saved`} onChange={onChange} />
+    </Suspense>
   );
 }

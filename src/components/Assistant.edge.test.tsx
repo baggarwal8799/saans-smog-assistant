@@ -1,16 +1,21 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import * as client from '../lib/assistantClient';
-import { DELHI, profile } from '../test/fixtures';
-import { Assistant } from './Assistant';
 
-vi.mock('../lib/assistantClient', async (importOriginal) => ({
-  ...(await importOriginal<typeof client>()),
-  askAssistant: vi.fn(async () => ({ text: 'An answer' })),
-}));
+import { withInstantAnswers } from '../../test/assistantClient.js';
+import { DELHI, profile } from '../../test/fixtures.js';
+import { LanguageContext } from '../hooks/useCurrentLang.js';
+import * as client from '../lib/assistantClient.js';
+import { Assistant } from './Assistant.js';
+
+vi.mock('../lib/assistantClient.js', (importOriginal) => withInstantAnswers(importOriginal));
 
 const ask = vi.mocked(client.askAssistant);
-const show = () => render(<Assistant lang="en" place={DELHI} profile={profile()} />);
+const show = () =>
+  render(
+    <LanguageContext value="en">
+      <Assistant place={DELHI} profile={profile()} />
+    </LanguageContext>,
+  );
 const box = () => screen.getByLabelText('Your question');
 
 describe('the question form', () => {

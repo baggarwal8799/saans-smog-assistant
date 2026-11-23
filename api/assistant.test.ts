@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { POST } from './assistant';
+
+import { POST } from './assistant.js';
 
 describe('Vercel function entry', () => {
   it('delegates to the shared handler', async () => {

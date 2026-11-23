@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DELHI, jsonResponse, profile } from '../test/fixtures';
-import { AssistantError, askAssistant } from './assistantClient';
+
+import { DELHI, jsonResponse, profile } from '../../test/fixtures.js';
+import { askAssistant, AssistantError } from './assistantClient.js';
 
 const base = { lang: 'en' as const, mode: 'summary' as const, place: DELHI, profile: profile() };
 
@@ -27,6 +28,7 @@ describe('askAssistant', () => {
     ['a request-level code', jsonResponse({ error: 'too_large' }, 413), 'ai_unavailable'],
     ['a body that is not JSON', new Response('boom', { status: 500 }), 'ai_unavailable'],
     ['an OK reply with no text', jsonResponse({ answer: 'x' }), 'ai_unavailable'],
+    ['a JSON body that is not an object', jsonResponse(null, 500), 'ai_unavailable'],
   ])('turns %s into an AssistantError the UI can word', async (_case, response, code) => {
     const err = await askAssistant(
       base,

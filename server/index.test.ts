@@ -3,11 +3,14 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { brotliDecompressSync, gunzipSync } from 'node:zlib';
-import { aiStatus, createApp, securityHeaders } from './index';
-import { pickEncoding, safePath } from './static';
-import { LIMITS } from '../src/lib/contract';
+
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+import { LIMITS } from '../core/contract.js';
+import { securityHeaders } from './headers.js';
+import { aiStatus, createApp } from './index.js';
+import { pickEncoding, safePath } from './static.js';
 
 const VERCEL = JSON.stringify({
   headers: [
@@ -22,15 +25,31 @@ const VERCEL = JSON.stringify({
   ],
 });
 
+/** A built app in a fresh temp folder: index.html plus the given files under assets/. */
+function builtRoot(prefix: string, assets: Record<string, string | Buffer>): string {
+  const root = mkdtempSync(join(tmpdir(), prefix));
+  mkdirSync(join(root, 'assets'));
+  writeFileSync(join(root, 'index.html'), '<!doctype html><title>Saans</title>');
+  for (const [name, content] of Object.entries(assets)) writeFileSync(join(root, 'assets', name), content);
+  return root;
+}
+
+/** The app serving `root` on a free local port. */
+async function listen(root: string, headers: Record<string, string>): Promise<{ base: string; close: () => void }> {
+  const server = createApp({ env: {}, headers, root, trustProxy: false });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  return { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, close: () => server.close() };
+}
+
 describe('securityHeaders', () => {
   it('keeps HTTPS-only headers only when serving over HTTPS', () => {
-    expect(securityHeaders(VERCEL, false)).toEqual({
+    expect(securityHeaders(VERCEL, { https: false })).toEqual({
       'Content-Security-Policy': "default-src 'self'",
       'X-Frame-Options': 'DENY',
     });
-    expect(securityHeaders(VERCEL, true)['Strict-Transport-Security']).toBe('max-age=1');
-    expect(securityHeaders(VERCEL, true)['Content-Security-Policy']).toContain('upgrade-insecure-requests');
-    expect(securityHeaders('{}', false)).toEqual({});
+    expect(securityHeaders(VERCEL, { https: true })['Strict-Transport-Security']).toBe('max-age=1');
+    expect(securityHeaders(VERCEL, { https: true })['Content-Security-Policy']).toContain('upgrade-insecure-requests');
+    expect(securityHeaders('{}', { https: false })).toEqual({});
   });
 });
 
@@ -49,14 +68,8 @@ describe('createApp', () => {
   let close: () => void = () => undefined;
 
   beforeAll(async () => {
-    const root = mkdtempSync(join(tmpdir(), 'saans-'));
-    mkdirSync(join(root, 'assets'));
-    writeFileSync(join(root, 'index.html'), '<!doctype html><title>Saans</title>');
-    writeFileSync(join(root, 'assets', 'app-123.js'), 'console.log("saans");'.repeat(200));
-    const server = createApp({}, { 'X-Frame-Options': 'DENY' }, root, false);
-    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
-    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-    close = () => server.close();
+    const root = builtRoot('saans-', { 'app-123.js': 'console.log("saans");'.repeat(200) });
+    ({ base, close } = await listen(root, { 'X-Frame-Options': 'DENY' }));
   });
   afterAll(() => close());
 
@@ -122,15 +135,10 @@ describe('compression and caching', () => {
   const js = 'console.log("saans");'.repeat(200);
 
   beforeAll(async () => {
-    const root = mkdtempSync(join(tmpdir(), 'saans-z-'));
-    mkdirSync(join(root, 'assets'));
-    writeFileSync(join(root, 'index.html'), '<!doctype html><title>Saans</title>');
-    writeFileSync(join(root, 'assets', 'app.js'), js);
-    writeFileSync(join(root, 'assets', 'logo.png'), Buffer.from([137, 80, 78, 71]));
-    const server = createApp({}, {}, root, false);
-    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
-    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-    close = () => server.close();
+    ({ base, close } = await listen(
+      builtRoot('saans-z-', { 'app.js': js, 'logo.png': Buffer.from([137, 80, 78, 71]) }),
+      {},
+    ));
   });
   afterAll(() => close());
 
@@ -182,6 +190,8 @@ describe('startup message', () => {
   it('names the model when a key is set, and explains how to get a free key when not', () => {
     expect(aiStatus({ GEMINI_API_KEY: 'k' })).toBe('AI: Gemini (gemini-flash-lite-latest)');
     expect(aiStatus({ GEMINI_API_KEY: 'k', GEMINI_MODEL: 'gemini-3.8-flash' })).toBe('AI: Gemini (gemini-3.8-flash)');
+    // The model the server really calls: an unsafe name is never used, so it is never printed either.
+    expect(aiStatus({ GEMINI_API_KEY: 'k', GEMINI_MODEL: '../x' })).toBe('AI: Gemini (gemini-flash-lite-latest)');
     const help = aiStatus({});
     expect(help).toMatch(/GEMINI_API_KEY is not set/);
     expect(help).toMatch(/aistudio\.google\.com\/apikey/);

@@ -1,73 +1,74 @@
-import { Suspense, useMemo, useState } from 'react';
-import type { AirReport, Lang, Place, Plan, Profile } from '../lib/types';
-import { lazyPart } from './lazyPart';
-import { PlanView } from './PlanView';
-import { ProfileForm } from './ProfileForm';
-import { AnswerSkeleton, PlanSkeleton } from './Skeleton';
+import { type ReactElement, Suspense, useState } from 'react';
+
+import { COORD_DECIMALS, placeKey } from '../../core/place.js';
+import type { AirReport, Place, Plan, Profile } from '../../core/types.js';
+import { useCurrentLang } from '../hooks/useCurrentLang.js';
+import { answerContextId } from '../lib/answerContext.js';
+import { lazyPart } from './lazyPart.js';
+import { PlanView } from './PlanView.js';
+import { ProfileForm } from './ProfileForm.js';
+import { AnswerSkeleton, PlanSkeleton } from './Skeleton.js';
 
 // Ask Saans (with its answer renderer and API client) is its own chunk. It is fetched as soon as a place is set, in
 // parallel with the air data, so it is ready by the time the plan renders: no waterfall, and nothing on first paint.
-const loadAssistant = () => import('./Assistant');
+const loadAssistant = () => import('./Assistant.js');
 const Assistant = lazyPart(() => loadAssistant().then((m) => m.Assistant));
 
-/** Start fetching the Ask Saans chunk; a failure here is shown later by lazyPart, where the part would render. */
+/** A failure here is shown later by lazyPart, where the part would render. */
 export function preloadAssistant(): void {
   loadAssistant().catch(() => undefined);
 }
 
-interface Props {
-  lang: Lang;
-  place: Place;
-  household: Profile;
+interface Household {
+  profile: Profile;
   sample: boolean;
-  onEditProfile: (p: Profile) => void;
+  onEdit: (p: Profile) => void;
+}
+
+interface Results {
   report: AirReport | null;
   plan: Plan | null;
   loading: boolean;
 }
 
-/** The household form, the plan and Ask Saans, shown once a place is set. */
-export function Workspace({ lang, place, household, sample, onEditProfile, report, plan, loading }: Readonly<Props>) {
+interface Props {
+  place: Place;
+  household: Readonly<Household>;
+  results: Readonly<Results>;
+}
+
+export function Workspace({ place, household, results }: Readonly<Props>): ReactElement {
+  const lang = useCurrentLang();
+  const { report, plan, loading } = results;
   // Gemini explains the first plan at each place on its own. Household edits and the language toggle keep the
   // "Explain my plan" button instead, so clicking through the form never spends the free AI quota.
   const [summarized, setSummarized] = useState<ReadonlySet<string>>(() => new Set());
-  const placeKey = `${place.lat.toFixed(3)},${place.lon.toFixed(3)}`;
-  // Remount the assistant whenever its inputs change, so an old answer never describes a different situation.
-  const assistantKey = useMemo(
-    () => (report ? JSON.stringify({ lang, place, profile: household, at: report.current.time }) : ''),
-    [lang, place, household, report],
-  );
+  const summaryKey = placeKey(place, COORD_DECIMALS.summary);
 
   return (
     <div className="workspace">
       <div className="household-area">
-        <ProfileForm lang={lang} profile={household} sample={sample} onChange={onEditProfile} />
+        <ProfileForm profile={household.profile} sample={household.sample} onChange={household.onEdit} />
       </div>
-      {plan ? (
-        <div className="plan-area">
-          <PlanView lang={lang} plan={plan} />
-        </div>
-      ) : (
-        loading && (
-          <div className="plan-area">
-            <PlanSkeleton />
-          </div>
-        )
-      )}
+      <PlanArea plan={plan} loading={loading} />
       {report && (
         <div className="ask-area">
           <Suspense fallback={<AnswerSkeleton />}>
             <Assistant
-              key={assistantKey}
-              lang={lang}
+              key={answerContextId({ lang, place, profile: household.profile, at: report.current.time })}
               place={place}
-              profile={household}
-              autoSummary={!summarized.has(placeKey)}
-              onAutoSummary={() => setSummarized((s) => new Set(s).add(placeKey))}
+              profile={household.profile}
+              autoSummary={!summarized.has(summaryKey)}
+              onAutoSummary={() => setSummarized((s) => new Set(s).add(summaryKey))}
             />
           </Suspense>
         </div>
       )}
     </div>
   );
+}
+
+function PlanArea({ plan, loading }: Readonly<Pick<Results, 'plan' | 'loading'>>) {
+  if (!plan && !loading) return null;
+  return <div className="plan-area">{plan ? <PlanView plan={plan} /> : <PlanSkeleton />}</div>;
 }

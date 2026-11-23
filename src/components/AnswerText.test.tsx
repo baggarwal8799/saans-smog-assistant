@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { AnswerText, toBlocks } from './AnswerText';
+
+import { AnswerText, toBlocks } from './AnswerText.js';
 
 describe('AnswerText', () => {
   it('turns bullet lines into a real list and keeps other lines as paragraphs', () => {

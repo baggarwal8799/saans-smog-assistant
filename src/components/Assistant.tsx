@@ -1,15 +1,17 @@
-import { useId, type SubmitEvent, type RefObject } from 'react';
-import { useAssistant, type Answer, type AssistantOptions } from '../hooks/useAssistant';
-import { QUESTION_MAX } from '../lib/assistantClient';
-import type { AssistantMode } from '../lib/contract';
-import { t } from '../lib/i18n';
-import type { Lang } from '../lib/types';
-import { AnswerText } from './AnswerText';
-import { AnswerSkeleton, Spinner } from './Skeleton';
+import { type ReactElement, type RefObject, type SubmitEvent, useId } from 'react';
 
-export function Assistant(props: Readonly<AssistantOptions>) {
-  const { lang } = props;
-  const { question, setQuestion, answer, answerRef, pending, busy, error, run } = useAssistant(props);
+import type { AssistantMode } from '../../core/contract.js';
+import { t } from '../../core/i18n.js';
+import { type Answer, type AssistantOptions, useAssistant } from '../hooks/useAssistant.js';
+import { useCurrentLang } from '../hooks/useCurrentLang.js';
+import { QUESTION_MAX } from '../lib/assistantClient.js';
+import { AnswerText } from './AnswerText.js';
+import { AnswerSkeleton, Spinner } from './Skeleton.js';
+
+export function Assistant(props: Readonly<Omit<AssistantOptions, 'lang'>>): ReactElement {
+  const lang = useCurrentLang();
+  const { input, request, reply, run } = useAssistant({ ...props, lang });
+  const { pending, busy } = request;
 
   return (
     <section aria-labelledby="ask-heading" className="ask">
@@ -23,26 +25,25 @@ export function Assistant(props: Readonly<AssistantOptions>) {
       </button>
 
       <AskForm
-        lang={lang}
-        question={question}
-        onQuestion={setQuestion}
+        question={input.question}
+        onQuestion={input.setQuestion}
         pending={pending}
         onAsk={() => void run('question')}
       />
-      <AnswerArea lang={lang} busy={busy} error={error} answer={answer} answerRef={answerRef} />
+      <AnswerArea busy={busy} error={request.error} answer={reply.answer} answerRef={reply.answerRef} />
     </section>
   );
 }
 
 interface AskFormProps {
-  lang: Lang;
   question: string;
   onQuestion: (q: string) => void;
   pending: AssistantMode | null;
   onAsk: () => void;
 }
 
-function AskForm({ lang, question, onQuestion, pending, onAsk }: Readonly<AskFormProps>) {
+function AskForm({ question, onQuestion, pending, onAsk }: Readonly<AskFormProps>) {
+  const lang = useCurrentLang();
   const qId = useId();
   const hintId = useId();
   const busy = pending !== null;
@@ -81,14 +82,14 @@ function AskForm({ lang, question, onQuestion, pending, onAsk }: Readonly<AskFor
 }
 
 interface AnswerAreaProps {
-  lang: Lang;
   busy: boolean;
   error: string;
   answer: Answer | null;
   answerRef: RefObject<HTMLElement | null>;
 }
 
-function AnswerArea({ lang, busy, error, answer, answerRef }: Readonly<AnswerAreaProps>) {
+function AnswerArea({ busy, error, answer, answerRef }: Readonly<AnswerAreaProps>) {
+  const lang = useCurrentLang();
   return (
     <>
       <div className="answer-region">

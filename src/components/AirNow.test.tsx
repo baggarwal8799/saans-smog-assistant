@@ -1,11 +1,13 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { buildPlan } from '../lib/recommend';
-import { profile } from '../test/fixtures';
-import { INDIA, airReport } from '../test/scenarios';
-import type { Lang } from '../lib/types';
-import type { Weather } from '../test/scenarios';
-import { AirNow } from './AirNow';
+
+import { buildPlan } from '../../core/recommend.js';
+import type { Lang } from '../../core/types.js';
+import { profile } from '../../test/fixtures.js';
+import type { Weather } from '../../test/scenarios.js';
+import { airReport, INDIA } from '../../test/scenarios.js';
+import { LanguageContext } from '../hooks/useCurrentLang.js';
+import { AirNow } from './AirNow.js';
 
 function show(
   aqi: number,
@@ -15,7 +17,11 @@ function show(
   edit = (r: ReturnType<typeof airReport>) => r,
 ) {
   const report = edit(airReport({ aqi, weather, startHour, place: INDIA }));
-  render(<AirNow lang={lang} report={report} plan={buildPlan(report, profile(), lang)} />);
+  render(
+    <LanguageContext value={lang}>
+      <AirNow report={report} plan={buildPlan(report, profile(), lang)} />
+    </LanguageContext>,
+  );
 }
 
 describe('AirNow', () => {

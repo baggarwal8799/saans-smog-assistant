@@ -1,12 +1,14 @@
-import { useId, type SubmitEvent } from 'react';
-import { usePlaceSearch, type SearchStatus } from '../hooks/usePlaceSearch';
-import { placeLabel } from '../lib/geo';
-import { t } from '../lib/i18n';
-import type { Lang, Place } from '../lib/types';
-import { Spinner } from './Skeleton';
+import { type ReactElement, type SubmitEvent, useId } from 'react';
+
+import { t } from '../../core/i18n.js';
+import { placeLabel } from '../../core/place.js';
+import type { Place } from '../../core/types.js';
+import { useCurrentLang } from '../hooks/useCurrentLang.js';
+import { type SearchStatus, usePlaceSearch } from '../hooks/usePlaceSearch.js';
+import { MAX_QUERY } from '../lib/geo.js';
+import { Spinner } from './Skeleton.js';
 
 interface Props {
-  lang: Lang;
   selected: Place | null;
   onSelect: (place: Place) => void;
 }
@@ -15,15 +17,16 @@ interface Props {
  * With no place chosen this is the page's opening question. Once a place is chosen it shrinks to a
  * one-line "Change place" control so the air reading can take the space.
  */
-export function LocationPicker({ lang, selected, onSelect }: Readonly<Props>) {
-  const search = usePlaceSearch(lang, onSelect);
+export function LocationPicker({ selected, onSelect }: Readonly<Props>): ReactElement {
+  const lang = useCurrentLang();
+  const { input, view, changing, actions } = usePlaceSearch(lang, onSelect);
   const statusId = useId();
-  const open = !selected || search.changing;
+  const open = !selected || changing.active;
 
   return (
     <section aria-labelledby="loc-heading" className={open ? 'locate open' : 'locate'}>
-      {selected && !search.changing ? (
-        <LocateBar lang={lang} selected={selected} onChange={() => search.setChanging(true)} />
+      {selected && !changing.active ? (
+        <LocateBar selected={selected} onChange={changing.start} />
       ) : (
         <>
           <h2 id="loc-heading" className={selected ? 'locate-title compact' : 'locate-title'}>
@@ -31,24 +34,24 @@ export function LocationPicker({ lang, selected, onSelect }: Readonly<Props>) {
           </h2>
           {!selected && <p className="locate-lede">{t(lang, 'locationLede')}</p>}
           <SearchForm
-            lang={lang}
-            query={search.query}
-            onQuery={search.setQuery}
-            onSearch={search.search}
-            status={search.status}
-            busy={search.busy}
+            query={input.query}
+            onQuery={input.setQuery}
+            onSearch={actions.search}
+            status={view.status}
+            busy={view.busy}
             statusId={statusId}
           />
-          <UseMyLocation lang={lang} status={search.status} busy={search.busy} onLocate={search.locate} />
+          <UseMyLocation status={view.status} busy={view.busy} onLocate={actions.locate} />
         </>
       )}
-      <StatusLine id={statusId} lang={lang} status={search.status} />
-      <ResultsList lang={lang} results={search.results} onChoose={search.choose} />
+      <StatusLine id={statusId} status={view.status} />
+      <ResultsList results={view.results} onChoose={actions.choose} />
     </section>
   );
 }
 
-function LocateBar({ lang, selected, onChange }: Readonly<{ lang: Lang; selected: Place; onChange: () => void }>) {
+function LocateBar({ selected, onChange }: Readonly<{ selected: Place; onChange: () => void }>) {
+  const lang = useCurrentLang();
   return (
     <div className="locate-bar">
       <h2 id="loc-heading" className="visually-hidden">
@@ -66,7 +69,6 @@ function LocateBar({ lang, selected, onChange }: Readonly<{ lang: Lang; selected
 }
 
 interface SearchFormProps {
-  lang: Lang;
   query: string;
   onQuery: (q: string) => void;
   onSearch: (e: SubmitEvent<HTMLFormElement>) => Promise<void>;
@@ -75,7 +77,8 @@ interface SearchFormProps {
   statusId: string;
 }
 
-function SearchForm({ lang, query, onQuery, onSearch, status, busy, statusId }: Readonly<SearchFormProps>) {
+function SearchForm({ query, onQuery, onSearch, status, busy, statusId }: Readonly<SearchFormProps>) {
+  const lang = useCurrentLang();
   const inputId = useId();
   return (
     <form role="search" onSubmit={(e) => void onSearch(e)} className="search-row">
@@ -89,7 +92,7 @@ function SearchForm({ lang, query, onQuery, onSearch, status, busy, statusId }: 
         autoComplete="address-level2"
         required
         minLength={2}
-        maxLength={80}
+        maxLength={MAX_QUERY}
         value={query}
         placeholder={t(lang, 'searchPlaceholder')}
         aria-describedby={statusId}
@@ -103,10 +106,12 @@ function SearchForm({ lang, query, onQuery, onSearch, status, busy, statusId }: 
   );
 }
 
-function UseMyLocation(
-  props: Readonly<{ lang: Lang; status: SearchStatus; busy: boolean; onLocate: () => Promise<void> }>,
-) {
-  const { lang, status, busy, onLocate } = props;
+function UseMyLocation({
+  status,
+  busy,
+  onLocate,
+}: Readonly<{ status: SearchStatus; busy: boolean; onLocate: () => Promise<void> }>) {
+  const lang = useCurrentLang();
   return (
     <button
       type="button"
@@ -121,7 +126,8 @@ function UseMyLocation(
   );
 }
 
-function StatusLine({ id, lang, status }: Readonly<{ id: string; lang: Lang; status: SearchStatus }>) {
+function StatusLine({ id, status }: Readonly<{ id: string; status: SearchStatus }>) {
+  const lang = useCurrentLang();
   return (
     <p id={id} role="status" className={status.kind === 'error' ? 'error' : 'status'}>
       {status.kind === 'busy' && t(lang, 'searching')}
@@ -132,11 +138,8 @@ function StatusLine({ id, lang, status }: Readonly<{ id: string; lang: Lang; sta
   );
 }
 
-function ResultsList({
-  lang,
-  results,
-  onChoose,
-}: Readonly<{ lang: Lang; results: Place[]; onChoose: (p: Place) => void }>) {
+function ResultsList({ results, onChoose }: Readonly<{ results: Place[]; onChoose: (p: Place) => void }>) {
+  const lang = useCurrentLang();
   if (results.length === 0) return null;
   return (
     <ul aria-label={t(lang, 'results')} className="results">

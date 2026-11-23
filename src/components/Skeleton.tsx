@@ -1,9 +1,11 @@
+import type { ReactElement } from 'react';
+
 /**
  * Placeholders shaped like the content that is loading, so the page does not jump when data arrives.
  * They are hidden from screen readers; the parent announces a short status message instead.
  */
 
-export function AirSkeleton() {
+export function AirSkeleton(): ReactElement {
   return (
     <div className="skeleton air-skeleton" aria-hidden="true">
       <span className="skel skel-title" />
@@ -24,7 +26,7 @@ export function AirSkeleton() {
   );
 }
 
-export function PlanSkeleton() {
+export function PlanSkeleton(): ReactElement {
   return (
     <div className="skeleton plan-skeleton" aria-hidden="true">
       <span className="skel skel-title" />
@@ -42,7 +44,7 @@ export function PlanSkeleton() {
   );
 }
 
-export function AnswerSkeleton() {
+export function AnswerSkeleton(): ReactElement {
   return (
     <div className="skeleton answer-skeleton" aria-hidden="true">
       <span className="skel skel-line w40" />
@@ -53,8 +55,7 @@ export function AnswerSkeleton() {
   );
 }
 
-/** The household form's fields while the editor chunk loads: label and box pairs. */
-export function FieldsSkeleton() {
+export function FieldsSkeleton(): ReactElement {
   return (
     <div className="skeleton fields-skeleton" aria-hidden="true">
       {[0, 1, 2, 3].map((i) => (
@@ -67,6 +68,6 @@ export function FieldsSkeleton() {
   );
 }
 
-export function Spinner() {
+export function Spinner(): ReactElement {
   return <span className="spinner" aria-hidden="true" />;
 }

@@ -3,8 +3,11 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createApp, securityHeaders } from '../server/index';
+
+import { securityHeaders } from '../server/headers.js';
+import { createApp } from '../server/index.js';
 
 // Every security header the app ships, with its exact value. vercel.json is the single source: Vercel serves it,
 // and the self-hosted server and `vite preview` read it at startup. Removing or loosening a header fails here.
@@ -30,7 +33,6 @@ const CSP_DIRECTIVES: Record<string, string> = {
   'frame-ancestors': "'none'",
 };
 
-/** The headers every response carries, whether or not the site is served over HTTPS. */
 const EXPECTED: Record<string, string> = {
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
@@ -94,7 +96,12 @@ describe('self-hosted server responses carry every security header', () => {
     mkdirSync(join(root, 'assets'));
     writeFileSync(join(root, 'index.html'), '<!doctype html><title>Saans</title>');
     writeFileSync(join(root, 'assets', 'app-1.js'), 'console.log(1);');
-    const server = createApp({}, securityHeaders(VERCEL_JSON, true), root, false);
+    const server = createApp({
+      env: {},
+      headers: securityHeaders(VERCEL_JSON, { https: true }),
+      root,
+      trustProxy: false,
+    });
     await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
     close = () => server.close();
@@ -130,7 +137,7 @@ describe('self-hosted server responses carry every security header', () => {
   });
 
   it('over plain HTTP, drops only HSTS and upgrade-insecure-requests', () => {
-    const http = securityHeaders(VERCEL_JSON, false);
+    const http = securityHeaders(VERCEL_JSON, { https: false });
     expect(http['Strict-Transport-Security']).toBeUndefined();
     expect(parseCsp(http['Content-Security-Policy'] ?? '')).toEqual(CSP_DIRECTIVES);
     for (const [key, value] of Object.entries(EXPECTED)) expect(http[key], key).toBe(value);

@@ -1,6 +1,7 @@
-import { expect, test, type Page } from '@playwright/test';
-import { JS_BUDGET_KB } from './limits';
-import { expandRows, mockApis, openHousehold, pickDelhi } from './mocks';
+import { expect, type Page, test } from '@playwright/test';
+
+import { JS_BUDGET_KB } from './limits.js';
+import { expandRows, mockApis, openHousehold, pickDelhi } from './mocks.js';
 
 // Generic guards: each test checks a whole class of regression (fonts, bundle size, names) across many page
 // states, rather than one known bug. Layout and contrast guards are in budgets-layout.spec.ts.

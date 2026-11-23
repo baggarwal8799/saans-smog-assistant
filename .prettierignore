@@ -6,5 +6,5 @@ test-results
 playwright-report
 screenshots
 package-lock.json
-api/_lib/fixtures
+backend/fixtures
 *.md

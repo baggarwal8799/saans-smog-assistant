@@ -1,68 +1,75 @@
 #!/usr/bin/env node
+// @ts-check
 /**
- * AI evaluation: asks a running server fixed scenario questions and checks each REAL answer with the same content
- * checks the server uses (api/_lib/numbers.ts, api/_lib/script.ts) plus simple semantic expectations. Uses the free
- * Gemini quota: about 9 requests, each charged per upstream attempt (fallbacks and a repair call included).
+ * AI evaluation: asks a running server fixed scenario questions and checks each REAL answer with the server's own
+ * content checks plus simple semantic expectations. Uses the free Gemini quota: about 9 requests, each charged per
+ * upstream attempt (fallbacks and a repair call included).
  *
  *   BASE_URL=http://127.0.0.1:8088 npm run check:ai
  *
- * The prompt the model saw is rebuilt here with the server's own code and live Open-Meteo data, so the number check
- * runs against the same CONTEXT (it can differ if the forecast updated between the server's fetch and this one).
- * Prints PASS or FAIL per scenario and exits 1 on any failure.
+ * The number check rebuilds the prompt from live Open-Meteo data, so it can differ if the forecast updated between the
+ * server's fetch and this one. Prints PASS or FAIL per scenario and exits 1 on any failure.
  */
 import { fileURLToPath } from 'node:url';
+
 import { runnerImport } from 'vite';
+
 import { scenarios, trapHour } from './eval-ai/scenarios.mjs';
+
+/**
+ * @import * as Server from './eval-ai/server.js'
+ * @import { CheckInput } from '../backend/checks.js'
+ * @import { Plan, Profile } from '../core/types.js'
+ * @import { Scenario, Trap } from './eval-ai/scenarios.mjs'
+ * @import { InlineConfig } from 'vite'
+ */
 
 const BASE_URL = (process.env.BASE_URL ?? 'http://127.0.0.1:8088').replace(/\/$/, '');
 const PAUSE_MS = 4_000; // the server allows 15 requests per minute per client
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const PLACE = { name: 'New Delhi', lat: 28.61, lon: 77.21, country: 'India' };
 
-/** Loads the server's TypeScript modules (with their .js-suffixed imports) through Vite, without a build. */
-async function load(path) {
-  const { module } = await runnerImport(`${ROOT}${path}`, { configFile: false, logLevel: 'error', root: ROOT });
+/**
+ * @typedef {object} Payload
+ * @property {'en' | 'hi'} lang
+ * @property {'summary' | 'question'} mode
+ * @property {string} [question]
+ * @property {typeof PLACE} place
+ * @property {Profile} profile
+ * @property {string[]} [history]
+ */
+/** @typedef {typeof Server} ServerModule */
+
+/** @type {(id: string, config: InlineConfig) => Promise<{ module: ServerModule }>} */
+const importServer = runnerImport;
+
+/**
+ * Loads the server's TypeScript (with its .js-suffixed imports) through Vite, without a build.
+ * @returns {Promise<ServerModule>}
+ */
+async function loadServer() {
+  const entry = fileURLToPath(new URL('eval-ai/server.ts', import.meta.url));
+  const { module } = await importServer(entry, { configFile: false, logLevel: 'error', root: ROOT });
   return module;
 }
 
-const MODULES = [
-  'api/_lib/numbers.ts',
-  'api/_lib/script.ts',
-  'api/_lib/answer.ts',
-  'api/_lib/prompt.ts',
-  'api/_lib/validate.ts',
-  'src/lib/aqi.ts',
-  'src/lib/recommend.ts',
-  'src/lib/context.ts',
-  'src/lib/profile.ts',
-  'api/_lib/medical.ts',
-];
-const [
-  { ungroundedNumbers },
-  { nonDevanagariWords },
-  { REFUSAL_TEXT },
-  { buildUserPrompt },
-  { parseAssistantRequest },
-  { fetchAirReport },
-  { buildPlan },
-  { buildContext },
-  { DEFAULT_PROFILE },
-  { MEDICAL_LINE },
-] = await Promise.all(MODULES.map(load));
+/**
+ * The server's line checks, run on the whole text the user saw as one line: its fixed lines contain no numbers and
+ * are Devanagari, and reply 'none' skips the yes/no check, which needs the model's own reply field.
+ * @param {ServerModule} server
+ * @param {string} text
+ * @param {CheckInput} input
+ * @returns {string[]}
+ */
+const contentProblems = (server, text, input) =>
+  server.checkAnswer({ offTopic: false, reply: 'none', lines: [text] }, input);
 
-/** The server's content checks, run on the text the user saw (its fixed lines contain no numbers and are Devanagari). */
-function contentProblems(text, prompt, req) {
-  const numbers = ungroundedNumbers(text, prompt);
-  const words = req.lang === 'hi' ? nonDevanagariWords(text) : [];
-  return [
-    ...(numbers.length > 0 ? [`numbers not in CONTEXT: ${numbers.join(', ')}`] : []),
-    ...(words.length > 0 ? [`not Devanagari: ${words.join(', ')}`] : []),
-  ];
-}
+const sleep = (/** @type {number} */ ms) => new Promise((r) => setTimeout(r, ms));
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const SCENARIOS = scenarios({ REFUSAL_TEXT, MEDICAL_LINE });
-
+/**
+ * @param {Payload} payload
+ * @returns {Promise<string>}
+ */
 async function ask(payload) {
   const res = await fetch(`${BASE_URL}/api/assistant`, {
     method: 'POST',
@@ -76,35 +83,50 @@ async function ask(payload) {
   return data.text;
 }
 
-/** The prompt the server built for this request, rebuilt with the same code. */
-async function promptFor(payload) {
-  const req = parseAssistantRequest(payload);
-  const report = await fetchAirReport(req.place);
-  const plan = buildPlan(report, req.profile, req.lang);
-  const said = req.mode === 'question' ? [req.question, ...req.history] : [];
-  return {
-    req,
-    plan,
-    prompt: buildUserPrompt(req, buildContext({ report, profile: req.profile, plan, lang: req.lang, said })),
-  };
+/**
+ * The server's check input for this request (its prompt, parsed request and EPA reply), built by the server's code.
+ * @param {ServerModule} server
+ * @param {Payload} payload
+ */
+async function groundedFor(server, payload) {
+  const input = await server.groundedInput(server.parseAssistantRequest(payload), fetch, console);
+  if (!input) throw new Error('air data unavailable');
+  return input;
 }
 
-/** Asks one scenario's question, prints its result and returns whether it failed. */
-async function runScenario(s, trap) {
+/**
+ * The plan for the eval's place and default household, to pick the hour the trap scenario asks about.
+ * @param {ServerModule} server
+ * @returns {Promise<Plan>}
+ */
+async function basePlan(server) {
+  const { parseAssistantRequest, DEFAULT_PROFILE, buildPlan, fetchAirReport } = server;
+  const req = parseAssistantRequest({ lang: 'en', mode: 'summary', place: PLACE, profile: { ...DEFAULT_PROFILE } });
+  return buildPlan(await fetchAirReport(req.place, fetch), req.profile, req.lang);
+}
+
+/**
+ * Asks one scenario's question, prints its result and returns whether it failed.
+ * @param {ServerModule} server
+ * @param {Scenario} s
+ * @param {Trap} trap
+ */
+async function runScenario(server, s, trap) {
+  /** @type {Payload} */
   const payload = {
     lang: s.lang ?? 'en',
     mode: 'question',
     question: s.question({ trap }),
     place: PLACE,
-    profile: { ...DEFAULT_PROFILE, ...s.profile },
+    profile: { ...server.DEFAULT_PROFILE, ...s.profile },
     history: s.history ?? [],
   };
+  /** @type {string[]} */
   let problems;
   let text = '';
   try {
     text = await ask(payload);
-    const { req, prompt } = await promptFor(payload);
-    problems = [...contentProblems(text, prompt, req), ...s.check(text, { trap })];
+    problems = [...contentProblems(server, text, await groundedFor(server, payload)), ...s.check(text, { trap })];
   } catch (err) {
     problems = [`request failed: ${err instanceof Error ? err.message : String(err)}`];
   }
@@ -117,16 +139,16 @@ async function runScenario(s, trap) {
 }
 
 async function main() {
+  const server = await loadServer();
   console.log(`AI evaluation against ${BASE_URL}\n`);
-  const base = await promptFor({ lang: 'en', mode: 'summary', place: PLACE, profile: { ...DEFAULT_PROFILE } });
-  const trap = trapHour(base.plan);
+  const trap = trapHour(await basePlan(server));
   let failed = 0;
 
-  // ONLY=<text> runs just the scenarios whose name contains it, to re-check one case without spending quota on all.
-  const chosen = SCENARIOS.filter((s) => !process.env.ONLY || s.name.includes(process.env.ONLY));
+  // ONLY=<text> re-checks just the matching scenarios without spending quota on all.
+  const chosen = scenarios(server).filter((s) => !process.env.ONLY || s.name.includes(process.env.ONLY));
   for (const [i, s] of chosen.entries()) {
     if (i > 0) await sleep(PAUSE_MS);
-    if (await runScenario(s, trap)) failed += 1;
+    if (await runScenario(server, s, trap)) failed += 1;
   }
 
   console.log(`\n${chosen.length - failed}/${chosen.length} scenarios passed.`);

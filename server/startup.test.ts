@@ -1,12 +1,15 @@
 // @vitest-environment node
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
-import { request, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { type IncomingMessage, request, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { createApp, forwardHeaders, startServer, toWebRequest } from './index';
-import { pathOf } from './static';
+
+import { forwardHeaders } from './assistantRoute.js';
+import { createApp, startServer } from './index.js';
+import { pathOf } from './static.js';
 
 const fakeReq = (o: Record<string, unknown>) => ({ headers: {}, socket: {}, ...o }) as unknown as IncomingMessage;
 const settle = (server: Server) => new Promise<void>((r) => server.once('listening', r));
@@ -36,35 +39,31 @@ function raw(base: string, path: string, opts: { method?: string; headers?: Reco
   });
 }
 
-describe('forwardHeaders and toWebRequest', () => {
+describe('forwardHeaders', () => {
   it('trusts X-Forwarded-For and X-Forwarded-Host only behind a trusted proxy', () => {
     const viaProxy = fakeReq({
       headers: { 'x-forwarded-for': '203.0.113.9', 'x-forwarded-host': 'saans.example' },
       socket: { remoteAddress: '10.0.0.1' },
     });
-    const trusted = forwardHeaders(viaProxy, true);
+    const trusted = forwardHeaders(viaProxy, { trustProxy: true });
     expect(trusted.get('x-forwarded-for')).toBe('203.0.113.9');
     expect(trusted.get('x-forwarded-host')).toBe('saans.example');
-    const direct = forwardHeaders(viaProxy, false);
+    const direct = forwardHeaders(viaProxy, { trustProxy: false });
     expect(direct.get('x-forwarded-for')).toBe('10.0.0.1');
     expect(direct.has('x-forwarded-host')).toBe(false);
     // A trusted proxy that sent no address still gets the socket's address as the rate-limit key.
-    expect(forwardHeaders(fakeReq({ socket: { remoteAddress: '10.0.0.2' } }), true).get('x-forwarded-for')).toBe(
-      '10.0.0.2',
-    );
+    expect(
+      forwardHeaders(fakeReq({ socket: { remoteAddress: '10.0.0.2' } }), { trustProxy: true }).get('x-forwarded-for'),
+    ).toBe('10.0.0.2');
   });
 
   it('keys a closed socket as "unknown" and drops repeated headers that are not single strings', () => {
-    const h = forwardHeaders(fakeReq({ headers: { 'set-cookie': ['a=1', 'b=2'], accept: 'x/y' } }), false);
+    const h = forwardHeaders(fakeReq({ headers: { 'set-cookie': ['a=1', 'b=2'], accept: 'x/y' } }), {
+      trustProxy: false,
+    });
     expect(h.get('x-forwarded-for')).toBe('unknown');
     expect(h.has('set-cookie')).toBe(false);
     expect(h.get('accept')).toBe('x/y');
-  });
-
-  it('builds the handler request on localhost with GET when the request has no Host or method', () => {
-    const r = toWebRequest(fakeReq({}), '', false);
-    expect(r.url).toBe('http://localhost/api/assistant');
-    expect(r.method).toBe('GET');
   });
 });
 
@@ -72,14 +71,14 @@ describe('createApp: edge requests', () => {
   let base = '';
   let server: Server;
   beforeAll(async () => {
-    server = createApp({}, { 'X-Frame-Options': 'DENY' }, buildDir(), false);
+    server = createApp({ env: {}, headers: { 'X-Frame-Options': 'DENY' }, root: buildDir(), trustProxy: false });
     server.listen(0, '127.0.0.1');
     await settle(server);
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   });
   afterAll(() => closeAll(server));
 
-  const fakeRes = (headersSent: boolean) => {
+  const fakeRes = ({ headersSent }: { headersSent: boolean }) => {
     const res = { headersSent, writeHead: vi.fn(), end: vi.fn() };
     res.writeHead.mockReturnValue(res);
     return res;
@@ -99,18 +98,20 @@ describe('createApp: edge requests', () => {
   });
 
   it('still ends the response, without new headers, when the failure comes after they were sent', async () => {
-    const res = fakeRes(true);
+    const res = fakeRes({ headersSent: true });
     server.emit('request', fakeReq({ url: '/api/assistant', method: 'GET', headers: { host: 'bad host' } }), res);
     await vi.waitFor(() => expect(res.end).toHaveBeenCalledWith('{"error":"internal_error"}'));
     expect(res.writeHead).not.toHaveBeenCalled();
   });
 
-  it('serves the app page to a request with no URL', () => {
-    const res = fakeRes(false);
+  it('serves the app page to a request with no URL', async () => {
+    const res = fakeRes({ headersSent: false });
     server.emit('request', fakeReq({ method: 'HEAD' }), res as unknown as ServerResponse);
-    expect(res.writeHead).toHaveBeenCalledWith(
-      200,
-      expect.objectContaining({ 'content-type': expect.stringContaining('text/html') }),
+    await vi.waitFor(() =>
+      expect(res.writeHead).toHaveBeenCalledWith(
+        200,
+        expect.objectContaining({ 'content-type': expect.stringContaining('text/html') }),
+      ),
     );
   });
 

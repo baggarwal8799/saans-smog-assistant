@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { scrollIntoViewRespectingMotion } from './scrollIntoView';
+
+import { scrollIntoViewRespectingMotion } from './scrollIntoView.js';
 
 function element() {
   const scroll = vi.fn();

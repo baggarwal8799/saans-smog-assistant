@@ -59,7 +59,7 @@ git push -u origin main
 6. **If you added the key after the first deploy:** go to Deployments → ⋯ → **Redeploy**. Environment variables only apply to new deployments.
 7. *(Optional)* **Share the limits across instances:** Project → **Storage** (Marketplace) → **Upstash** → Redis, free plan, connected to this project. It sets `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`; redeploy. Without it, the limits are per instance and start again on a cold start.
 
-How it runs: the static site is served from Vercel's CDN, and `/api/assistant` runs as a serverless function (`api/assistant.ts`, 30 s limit). Files under `api/_lib/` are helpers, not routes.
+How it runs: the static site is served from Vercel's CDN, and `/api/assistant` runs as a serverless function (`api/assistant.ts`, 30 s limit). Files under `backend/` are helpers, not routes.
 
 ---
 

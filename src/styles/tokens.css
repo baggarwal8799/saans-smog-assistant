@@ -1,8 +1,7 @@
 /*
- * Saans — "the sky over your city".
- * One bold idea: the top band takes the colour of today's air, and a 24-hour ribbon of bars shows the
- * day ahead. Everything below is quiet: plain rows, generous spacing, one accent (clear-sky blue).
- * Type: Baloo 2 (display) + Mukta (text), both by Ek Type, both drawn for Devanagari and Latin.
+ * The top band takes the colour of today's air, so the page shows at a glance how bad it is. Everything below stays
+ * quiet (plain rows, generous spacing, one accent) so that band carries the message. Baloo 2 and Mukta are both drawn
+ * for Devanagari and Latin, so Hindi and English pages look the same.
  */
 
 :root {

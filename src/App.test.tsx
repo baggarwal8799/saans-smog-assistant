@@ -1,13 +1,16 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { App } from './App';
-import { clearAirCache } from './lib/aqi';
-import { PLACE_KEY } from './lib/profile';
-import { DELHI, jsonResponse } from './test/fixtures';
-import { axeViolations, mockNetwork } from './test/network';
 
-beforeEach(() => clearAirCache());
+import { resetAirClient } from '../test/browserAir.js';
+import { DELHI, jsonResponse } from '../test/fixtures.js';
+import { axeViolations, mockNetwork } from '../test/network.js';
+import { App } from './App.js';
+import { PLACE_KEY } from './lib/storage.js';
+
+vi.mock('./lib/browserAir.js', () => import('../test/browserAir.js'));
+
+beforeEach(resetAirClient);
 afterEach(() => vi.unstubAllGlobals());
 
 describe('App: air, plan and household', () => {

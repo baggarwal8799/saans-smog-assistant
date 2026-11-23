@@ -1,13 +1,15 @@
-import { t } from '../lib/i18n';
-import type { Lang } from '../lib/types';
+import type { ReactElement } from 'react';
+
+import { t } from '../../core/i18n.js';
+import { useCurrentLang } from '../hooks/useCurrentLang.js';
 
 interface Props {
-  lang: Lang;
   switching: boolean;
   onToggleLang: () => void;
 }
 
-export function TopBar({ lang, switching, onToggleLang }: Readonly<Props>) {
+export function TopBar({ switching, onToggleLang }: Readonly<Props>): ReactElement {
+  const lang = useCurrentLang();
   return (
     <header className="topbar">
       <p className="brand">

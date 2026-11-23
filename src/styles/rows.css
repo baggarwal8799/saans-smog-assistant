@@ -18,11 +18,7 @@
 .row-item:last-child {
   border-bottom: 1px solid var(--line);
 }
-/*
- * Flex with wrapping, not a `1fr auto` grid: an auto column sized to two badges squeezes the title to one word a
- * line. The title asks for a readable width first; when title and badges do not fit side by side, the badges
- * move under it.
- */
+/* Flex with wrapping, not a `1fr auto` grid, so the title keeps a readable width and the badges wrap under it. */
 .row-item summary {
   list-style: none;
   display: flex;

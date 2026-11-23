@@ -1,6 +1,6 @@
 # AGENTS.md: Saans (smog-season assistant)
 
-The single guide for humans and AI agents (Antigravity, Codex, Cursor and others). New here? Start with `SETUP.md`. `README.md` is the judge-facing overview; this is the working manual.
+The guide for humans and AI agents (Antigravity, Codex, Cursor). New here? Start with `SETUP.md`. `README.md` is the judge-facing overview; this is the working manual.
 
 ---
 
@@ -20,7 +20,7 @@ The single guide for humans and AI agents (Antigravity, Codex, Cursor and others
 4. **Plan engine (deterministic):** combines the air data and the profile into ranked recommendations in four groups: routine, indoor, swap and community. Each carries a computed impact: kg CO₂/month, a % PM2.5 cut scoped to where it applies, or "removes a smoke source". The engine also produces the cleanest and worst 2-hour windows, a daily inhaled-dose estimate and a cigarette equivalent.
 5. **AI assistant:** a serverless function sends those *computed* numbers (plus the last three questions the user asked, for follow-ups) to Gemini, which returns a typed JSON object (`offTopic`, `reply`, `lines`) that the server renders as the answer, in English or Hindi. No key: `503 not_configured`; free-tier or global daily cap: `429 ai_rate_limited` (a client's own cap: `daily_limit`); Gemini failing: `502 ai_unavailable`, each a plain message in the UI. **It never shows a made-up or canned answer.**
 
-**The core invariant: the LLM never produces numbers.** All figures come from `src/lib/impact.ts` and the rules in `src/lib/plan/`, which are unit-tested. The model may quote only the numbers in its context: any other number is sent back once, then its line dropped (`checks.ts`).
+**The core invariant: the LLM never produces numbers.** All figures come from `core/impact.ts` and the rules in `core/plan/`, which are unit-tested. The model may quote only the numbers in its context: any other number is sent back once, then its line dropped (`checks.ts`).
 
 ---
 
@@ -34,7 +34,7 @@ docker compose up --build -d  # builds and starts; open http://localhost:8080
 docker compose logs -f        # the first lines say whether AI is on, and how to turn it on if not
 ```
 
-You only change `.env` after that. Apply changes with `docker compose up -d`, which recreates the container with the new settings. Stop it with `docker compose down`. The container runs read-only as a non-root user with all capabilities dropped, and has a `/healthz` health check.
+After that, change only `.env` and apply it with `docker compose up -d`, which recreates the container. Stop it with `docker compose down`. The container runs read-only as a non-root user with all capabilities dropped, and has a `/healthz` health check.
 
 ### Option B: Node (for development)
 
@@ -53,10 +53,10 @@ Free tier proof: https://ai.google.dev/gemini-api/docs/pricing (Flash models are
 
 **Gemini (recommended):**
 1. Open https://aistudio.google.com/apikey and sign in with a Google account.
-2. Click **Create API key**. Choose or create any Google Cloud project if asked. No billing or card is needed for the free tier.
+2. Click **Create API key**. Choose or create any Google Cloud project if asked. No billing or card is needed.
 3. Copy the key into `.env`: `GEMINI_API_KEY=your-key`, with no quotes and no spaces.
 4. Restart: `docker compose up -d`, or re-run `npm run dev` / `npm start`.
-5. Check: the plan explanation loads on its own. You should get a written answer, not the "needs a Gemini API key" message.
+5. Check: the plan explanation loads on its own as a written answer, not the "needs a Gemini API key" message.
 
 The free-tier providers may use prompts to improve their products, so don't type personal details into the assistant.
 
@@ -93,7 +93,7 @@ Every setting lives in `.env`; `.env.example` documents each one.
 | `npm run check:size` | Fails if the source is over 5 MB (the submission cap is 10 MB) |
 | `npm run check:live` | Smoke test against **real** services (needs `npm run preview` running). `EXPECT_AI=true` makes it fail unless Gemini actually answers |
 | `npm run check:clickthrough` | Clicks every control on a running build (use the Docker one: `BASE_URL=http://127.0.0.1:8080`). With `EXPECT_AI=true` it also checks real Gemini answers, Hindi replies and prompt-injection refusal. Screenshots go to `screenshots/clickthrough` |
-| `npm run demo:video` | Narrated demo videos into `demo/` from a running build (local Piper voice; setup at the top of `scripts/demo-video.mjs`) |
+| `npm run demo:video` | Narrated demo videos into `demo/` from a running build (local Piper voice; setup notes in `scripts/demo/index.mjs`) |
 | `npm run shots` | Screenshots of the main states into `./screenshots` (needs `npm run preview` running; real data) |
 | `npm run build:server` | Bundle `server/index.ts` into `dist-server/index.js` (a single file, Node built-ins only) |
 | `npm run build:all` | `build` + `build:server` |
@@ -109,7 +109,7 @@ Every setting lives in `.env`; `.env.example` documents each one.
 ```
 Browser (React 19, Vite)                                   Vercel Function (Node, Web handler)
 ┌──────────────────────────────────────────────┐  POST    ┌─────────────────────────────────────┐
-│ LocationPicker → geo.ts (search / reverse)   │  JSON    │ api/assistant.ts → _lib/assistant.ts│
+│ LocationPicker → geo.ts (search / reverse)   │  JSON    │ api/assistant.ts → backend/handler  │
 │ aqi/windows/weather: fetch, windows, trap    │ ───────▶ │  same-origin check → size check →   │
 │ recommend.ts + plan/ + impact.ts: the plan   │          │  rate limit → validate → cache →    │
 │ assistantClient.ts: place + household only   │ ◀─────── │  Gemini JSON → text, or error code  │
@@ -117,9 +117,11 @@ Browser (React 19, Vite)                                   Vercel Function (Node
 └──────────────────────────────────────────────┘
 ```
 
+`core/` is shared domain code (no DOM, storage or React), `src/` the browser app. Imports go `src`/`api` → `core`, `server` → `core`/`api`, never back.
+
 | Path | Responsibility |
 |---|---|
-| `src/App.tsx` | Page layout, air fetch lifecycle (loading is *derived*, not stored), focus and scroll after choosing a place, persistence |
+| `src/App.tsx` · `src/hooks/useAirForPlace.ts` | Page layout and persistence · air fetch lifecycle (loading is *derived*, not stored) |
 | `src/components/LocationPicker.tsx` | Opening question, search, *Use my location* (reverse geocode, falls back to coordinates), collapsed "Change place" bar |
 | `src/components/AirNow.tsx` | The "sky" band: AQI badge, words, metrics, main pollutant, window texts (adds "tomorrow" when needed) |
 | `src/components/AirRibbon.tsx` | 24 hourly PM2.5 bars marking the best and worst windows (decorative; the same facts are in text) |
@@ -127,65 +129,65 @@ Browser (React 19, Vite)                                   Vercel Function (Node
 | `src/components/ProfileForm.tsx` | Household line; the form is the lazy `ProfileEditor.tsx` (`NumberField` keeps typed drafts) |
 | `src/components/Assistant.tsx` | Lazy chunk. Explain / ask; auto-summary skipped in hidden tabs or with Save-Data; text-only answer; per-error messages; remounts on context change |
 | `src/components/Skeleton.tsx` | Air, plan and answer skeletons (`aria-hidden`; the parent announces the status) and the button spinner |
-| `src/lib/aqi.ts` · `windows.ts` · `weather.ts` | Air + weather fetch (15 min cache, max 500 entries), parsing and AQI bands · cleanest/worst windows (PM2.5 + ozone) · `findSmogTrap` (wind ≤ 8 km/h and mixing height ≤ 200 m for 3 h or more) |
-| `src/lib/impact.ts` | **All factors and maths**: emission factors, breathing rates, indoor ratios, N95, cigarette equivalence, dose model |
-| `src/lib/recommend.ts` | Builds the `Plan`: windows outside any smog trap, runs the rules, safety-first ranking, at most 3 "do first" items, CO₂ total |
-| `src/lib/plan/*.ts` | The rules, one file per kind (`routine`, `alerts`, `indoor`, `swaps`, `community`) plus `shared.ts` (`L(en, hi)`, `RuleInput`, India gating). Rules see only the concern level from `src/lib/concern.ts`, never the raw AQI |
+| `core/aqi.ts` · `airClient.ts` · `windows.ts` · `weather.ts` | AQI bands, parsing · air + weather fetch (15 min cache, max 500 entries) · cleanest/worst windows (PM2.5 + ozone) · `findSmogTrap` (wind ≤ 8 km/h and mixing height ≤ 200 m for 3 h or more) |
+| `core/impact.ts` | **All factors and maths**: emission factors, breathing rates, indoor ratios, N95, cigarette equivalence, dose model |
+| `core/recommend.ts` | Builds the `Plan`: windows outside any smog trap, runs the rules, safety-first ranking, at most 3 "do first" items, CO₂ total |
+| `core/plan/*.ts` | The rules, one file per kind (`routine`, `alerts`, `indoor`, `swaps`, `community`) plus `shared.ts` (`L(en, hi)`, `RuleInput`, India gating). Rules see only the concern level from `core/concern.ts`, never the raw AQI |
 | `src/lib/assistantClient.ts` | Calls `/api/assistant` |
 | `src/lib/geo.ts` | Search, reverse geocoding, coordinate labels, browser geolocation (rounded to 0.01°) |
-| `src/lib/profile.ts` | Profile, place and language persistence; `sanitizeProfile` (allow-list and clamping) |
-| `src/lib/i18n.ts` · `i18n-en.ts` · `i18n-hi.ts` | `t()`, `tn()` plurals · dictionaries; Hindi is a lazy chunk (sync on servers via `i18n-preloaded.ts`) |
+| `core/profile.ts` · `src/lib/storage.ts` | `sanitizeProfile` (allow-list, clamping), sample households · profile, place and language storage |
+| `core/i18n.ts` · `i18n-en.ts` · `i18n-hi.ts` | `t()`, `tn()` plurals · dictionaries; Hindi is a lazy chunk (sync on servers via `i18n-preloaded.ts`) |
 | `api/assistant.ts` | Vercel entry (`export function POST(request)`) |
-| `api/_lib/assistant.ts` | Handler: validates, **fetches air and weather itself and rebuilds the plan with the same engine** (client plan data is never trusted), then calls Gemini. Also caching, `quota.ts` caps, `origin.ts`, `medical.ts` lines, `gemini.ts`, `deadline.ts` budget |
+| `backend/handler.ts` | Handler: validates, **fetches air and weather itself and rebuilds the plan with the same engine** (client plan data is never trusted), then calls Gemini. Also caching, `quota.ts` caps, `origin.ts`, `medical.ts` lines, `gemini.ts`, `deadline.ts` budget |
 | `answer.ts` · `checks.ts` · `repair.ts` | Answer schema, parse, render · number and Devanagari checks · one repair, then failing lines dropped |
-| `src/lib/context.ts` · `askedTimes.ts` · `verdict.ts` | Plan → grounded Gemini context, asked-time facts, US EPA yes/no verdict (server side) |
-| `api/_lib/validate.ts` | Strict request validation, removal of control characters, bidi overrides and angle brackets |
-| `api/_lib/prompt.ts` | System instruction and fenced user prompt |
+| `backend/context.ts` · `core/askedTimes.ts` · `verdict.ts` | Plan → grounded Gemini context, asked-time facts, US EPA yes/no verdict (server side) |
+| `backend/validate.ts` | Strict request validation, removal of control characters, bidi overrides and angle brackets |
+| `backend/prompt.ts` | System instruction and fenced user prompt |
 | `limits.ts` · `store.ts` | 15 per minute per client and daily caps: shared across instances when Upstash is configured, per instance otherwise |
-| `src/lib/contract.ts` | Types, error codes and limits shared by client and server |
-| `server/index.ts` · `static.ts` | Self-hosted production server (Docker / `npm start`) · static files with Brotli/gzip, ETag/304 and traversal protection; SPA fallback, `vercel.json` headers, `/api/assistant`, `/healthz`, 15,000-byte body cap, prints AI status and key steps at startup |
+| `core/contract.ts` | Types, error codes and limits shared by client and server |
+| `server/index.ts` · `assistantRoute.ts` · `static.ts` | Self-hosted production server (Docker / `npm start`) · the Node `/api/assistant` route, also Vite's · static files with Brotli/gzip, ETag/304 and traversal protection; SPA fallback, `vercel.json` headers, `/api/assistant`, `/healthz`, 15,000-byte body cap, prints AI status and key steps at startup |
 | `Dockerfile`, `compose.yaml`, `.dockerignore` | Two-stage image (build → Alpine runtime without `node_modules`); compose reads `.env` |
 | `vite.config.ts` | Dev/preview API middleware, `vercel.json` headers on preview, Vitest config |
 | `vercel.json` | CSP and security headers (asserted in `src/securityHeaders.test.ts`; see `SECURITY.md`), asset caching, function timeout |
 | `e2e/app.spec.ts` | Playwright tests (mocked external APIs, real CSP, axe) |
-| `e2e/budgets.spec.ts` · `chunks.spec.ts` · `src/docs.test.ts` | Guards: font, JS (first load 100 kB gzip) and a11y budgets; lazy chunks · doc numbers, names, paths |
+| `e2e/budgets.spec.ts` · `chunks.spec.ts` · `test/docs.test.ts` | Guards: font, JS (first load 100 kB gzip) and a11y budgets; lazy chunks · doc numbers, names, paths |
 | `scripts/` | `setup`, `check-size`, `live-check`, `screenshots` |
 
 ---
 
 ## 5. Rules the code relies on (don't break these)
 
-1. **Numbers come from code, never the model.** New impact figures go in `impact.ts` or a rule in `src/lib/plan/`, with a source noted in the README table and a unit test.
+1. **Numbers come from code, never the model.** New impact figures go in `impact.ts` or a rule in `core/plan/`, with a source noted in the README table and a unit test.
 2. **Every percentage is scoped.** Set `scope` (e.g. "outdoors", "in the kitchen"). Never claim a whole-day cut. Removing a source uses `removesSource`, not "100%".
 3. **Community figures are separate.** Anything with `community: true` is excluded from the household CO₂ total. Switching commute mode and carpooling are alternatives, so only the larger counts.
 4. **Safety first.** `safety: true` tips (fuel heating, solid-fuel cooking) are their own group above the `MAX_URGENT = 3` "do first" items and take none of those slots. On a clean-air day nothing else is "do first".
 5. **Time windows start at the next full hour** and say "tomorrow" or "कल" when they fall on a later day (`isLaterDay`). Windows weigh PM2.5 *and* ozone (`airScore`). Ozone advice uses the ozone peak, not the overall worst window.
-6. **Bilingual everything.** Every visible string is in `i18n.ts` (both `en` and `hi`) or written as `bilingual(en, hi)` in `src/lib/plan/copy/`. Show translated messages instead of raw browser or API error text.
+6. **Bilingual everything.** Every visible string is in `i18n.ts` (both `en` and `hi`) or written as `bilingual(en, hi)` in `core/plan/copy/`. Show translated messages instead of raw browser or API error text.
 7. **Model output is a typed object, rendered as text.** Never use `dangerouslySetInnerHTML` or render Markdown from the model.
 8. **The server never trusts plan data from the browser.** It receives only `place` and `profile` and recomputes everything. **Server validation is an allow-list.** New request fields need validation in `validate.ts`, limits in `contract.ts` and tests. Keep the angle-bracket stripping: it protects the `<CONTEXT>` and `<QUESTION>` fences.
 9. **External hosts need the CSP.** Any new `fetch` host must be added to `connect-src` in `vercel.json`. After editing `vercel.json`, **restart `npm run preview`**, because headers are read at startup.
-10. **Storage may fail.** Wrap every `localStorage` access in try/catch (see `profile.ts`). The app must work in private mode.
+10. **Storage may fail.** Wrap every `localStorage` access in try/catch (see `storage.ts`). The app must work in private mode.
 11. **Accessibility is a requirement.** Labels on every input, one `h1`, logical heading order, ≥44 px targets, visible `:focus-visible`, colour never the only signal, AA contrast in both themes. `npm run test:e2e` must stay at zero axe violations.
 12. **Sorting:** never write a bare `.sort()`. Always pass a comparator (Sonar S2871). For identifiers whose order matters, use code-unit order, not `localeCompare`.
 13. **No file over 200 lines; one job per module.** Split by concern before a file grows past it (tests too). Tests mock every network call.
-14. **Comments explain *why*,** not what. Keep functions pure where possible; side effects live in `App.tsx`, `aqi.ts` (fetch and cache) and the API handler.
+14. **Comments explain *why*,** not what. Keep functions pure where possible; side effects live in hooks, `airClient.ts` (fetch and cache) and the API handler.
 
 ---
 
 ## 6. Common tasks
 
 **Add a recommendation**
-1. Write a `xxxRec(input: RuleInput): RecDraft | null` in the matching `src/lib/plan/*.ts` with `bilingual(en, hi)` text, and an impact (`co2KgPerMonth`, or `exposureCutPct` + `scope`, or `removesSource`).
-2. Add it to `draftsFor` in `recommend.ts` (array order breaks ties; set `epaActivity` if it changes who goes out or how hard).
+1. Write a `xxxRec(input: RuleInput): RecDraft | null` in the matching `core/plan/*.ts` with `bilingual(en, hi)` text, an `impact` (`co2KgPerMonth`, or `exposureCutPct` + `scope`, or `removesSource`) and optional `traits`.
+2. Add it to `draftsFor` in `recommend.ts` (array order breaks ties; set `traits.epaActivity` if it changes who goes out or how hard).
 3. Put any new factor in `impact.ts` with a source comment and add it to the README sources table.
-4. Add tests in `src/lib/recommend.test.ts`: when it appears, when it doesn't, and its impact.
+4. Add tests in `core/recommend.test.ts`: when it appears, when it doesn't, and its impact.
 
 **Add or change UI text**
-1. Add the key to **both** `src/lib/i18n-en.ts` and `i18n-hi.ts`. TypeScript fails if `hi` is missing a key.
+1. Add the key to **both** `core/i18n-en.ts` and `i18n-hi.ts`. TypeScript fails if `hi` is missing a key.
 2. Use `t(lang, 'key', { param })` in the component.
 
 **Change the LLM**
-1. Set `GEMINI_MODEL` in `.env`, or change `DEFAULT_MODEL` / `FALLBACK_MODELS` in `api/_lib/gemini.ts`.
+1. Set `GEMINI_MODEL` in `.env`, or change `DEFAULT_MODEL` / `FALLBACK_MODELS` in `backend/gemini.ts`.
 2. The chain is `GEMINI_MODEL` → `gemini-flash-lite-latest` → `gemini-3.1-flash-lite` → `gemini-flash-latest`. Each attempt gets min(9 s, time left of a 25 s budget shared with the repair; `deadline.ts`). The next model is tried on 404/429/5xx/timeout. A 400 first retries the same model without `thinkingConfig`.
 3. Flash-Lite is the fastest, so it comes first; full Flash was often 503 in Nov 2026 tests.
 4. `thinkingLevel: "low"` is accepted by Flash and Flash-Lite; `"minimal"` is rejected by full Flash.
@@ -195,7 +197,7 @@ Browser (React 19, Vite)                                   Vercel Function (Node
 
 ## 7. Testing guide
 
-- **Unit and integration (`npm test`):** pure logic in `src/lib/*.test.ts` and `api/**/*.test.ts` (server tests run in the `node` environment). `gemini.contract.test.ts` replays real Gemini bodies (`api/_lib/fixtures/`). `src/App*.test.tsx` drive the whole UI with every network call mocked (`src/test/network.ts`) and run axe-core; API tests share `src/test/apiHelpers.ts` and `src/test/fakeRedis.ts`.
+- **Unit and integration (`npm test`):** pure logic in `core/**/*.test.ts` and `api/**/*.test.ts` (server tests run in the `node` environment). `gemini.contract.test.ts` replays real Gemini bodies (`backend/fixtures/`). `src/App*.test.tsx` drive the whole UI with every network call mocked (`test/network.ts`) and run axe-core; API tests share `test/apiHelpers.ts` and `test/fakeRedis.ts`.
 - **End to end (`npm run test:e2e`):** builds the app and serves it with `vite preview`, so the production CSP is enforced. External APIs are mocked with `page.route`. Any CSP violation in the console fails the test. It covers the full flow, profile changes, geolocation naming, change place, keyboard use, no horizontal scroll at 360 px, API rejection paths, and axe scans in light, dark, English and Hindi.
 - **Real services:** `npm run preview`, then `npm run check:live` (geolocation → Lucknow, plan, assistant) and `npm run shots` (visual review). Look at the screenshots: automated checks miss visual bugs.
 - **When something fails in the browser but not in tests,** first check for a stale `npm run preview` server (old headers) and a cached build (hard refresh).
@@ -214,7 +216,7 @@ Browser (React 19, Vite)                                   Vercel Function (Node
 3. Add `GEMINI_API_KEY` under Project → Settings → Environment Variables, then redeploy.
 4. Open the URL and run through: search a city, *Use my location*, the plan explanation. With the key set you must get a written answer.
 
-The function is `api/assistant.ts` (`maxDuration` 30 s). Files under `api/_lib/` are not routes (underscore prefix). Relative imports in `api/` use `.js` suffixes on purpose, for Node ESM after compilation.
+The function is `api/assistant.ts` (`maxDuration` 30 s). Files under `backend/` are not routes. Relative imports in `api/` use `.js` suffixes on purpose, for Node ESM after compilation.
 
 ---
 
@@ -232,7 +234,7 @@ The function is `api/assistant.ts` (`maxDuration` 30 s). Files under `api/_lib/`
 
 ## 10. Known issues and backlog
 
-Highest impact first. The file to start from is given for each.
+Highest impact first, each with the file to start from.
 
 1. **Re-check the real AI path after any prompt or model change.** Unit tests mock `fetch`. With a key set, run `EXPECT_AI=true npm run check:clickthrough` and read the answers: grounded numbers, Hindi, injection refusal.
 2. **Place-name language.** Names come in the language used when searching or locating. Switching EN↔HI afterwards does not translate the stored name. Start from `LocationPicker.tsx` and `geo.ts`, e.g. re-resolve when the language changes.

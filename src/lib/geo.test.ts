@@ -1,15 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
-import { jsonResponse } from '../test/fixtures';
+
+import { jsonResponse } from '../../test/fixtures.js';
 import {
-  GEO_API,
-  REVERSE_API,
   coordsLabel,
   currentPosition,
-  placeLabel,
+  GEO_API,
+  REVERSE_API,
   reverseGeocode,
   sanitizePlaceQuery,
   searchPlaces,
-} from './geo';
+} from './geo.js';
 
 describe('sanitizePlaceQuery', () => {
   it('keeps letters in any script and strips markup', () => {
@@ -55,15 +55,9 @@ describe('searchPlaces', () => {
     await expect(
       searchPlaces('Delhi', 'en', vi.fn().mockResolvedValue(new Response('', { status: 500 }))),
     ).rejects.toThrow('500');
-  });
-});
-
-describe('placeLabel', () => {
-  it('joins the parts that exist', () => {
-    expect(placeLabel({ name: 'Patna', lat: 0, lon: 0, region: 'Bihar', country: 'India' })).toBe(
-      'Patna, Bihar, India',
+    await expect(searchPlaces('Delhi', 'en', vi.fn().mockResolvedValue(jsonResponse(null)))).rejects.toThrow(
+      'no object',
     );
-    expect(placeLabel({ name: 'Here', lat: 0, lon: 0 })).toBe('Here');
   });
 });
 
@@ -90,7 +84,7 @@ describe('reverseGeocode', () => {
     expect(url.searchParams.get('localityLanguage')).toBe('en');
   });
 
-  it('falls back to the locality, drops a region equal to the name, and returns null when unnamed or failing', async () => {
+  it('falls back to the locality, drops a region equal to the name, gives null when unnamed or failing', async () => {
     const f = vi
       .fn()
       .mockResolvedValue(
@@ -106,6 +100,7 @@ describe('reverseGeocode', () => {
       await reverseGeocode(0, 0, 'en', vi.fn().mockResolvedValue(jsonResponse({ city: '', locality: '' }))),
     ).toBeNull();
     expect(await reverseGeocode(0, 0, 'en', vi.fn().mockResolvedValue(new Response('', { status: 500 })))).toBeNull();
+    expect(await reverseGeocode(0, 0, 'en', vi.fn().mockResolvedValue(jsonResponse(null)))).toBeNull();
   });
 
   it('leaves out the country when the position has none (open sea, disputed land)', async () => {
@@ -130,22 +125,22 @@ describe('currentPosition', () => {
       getCurrentPosition: (ok: PositionCallback) =>
         ok({ coords: { latitude: 28.613939, longitude: 77.209023 } } as GeolocationPosition),
     } as unknown as Geolocation;
-    await expect(currentPosition('Me', geo)).resolves.toEqual({ name: 'Me', lat: 28.61, lon: 77.21 });
+    await expect(currentPosition(geo)).resolves.toEqual({ name: '', lat: 28.61, lon: 77.21 });
   });
 
   it('rejects when unsupported or denied', async () => {
-    await expect(currentPosition('Me')).rejects.toThrow('not supported');
+    await expect(currentPosition()).rejects.toThrow('not supported');
     const denied = {
       getCurrentPosition: (_ok: PositionCallback, fail: PositionErrorCallback) =>
         fail({ message: '' } as GeolocationPositionError),
     } as unknown as Geolocation;
-    await expect(currentPosition('Me', denied)).rejects.toThrow('denied');
+    await expect(currentPosition(denied)).rejects.toThrow('denied');
   });
 
   it('rejects as unsupported where there is no navigator at all (server-side rendering, Node)', async () => {
     vi.stubGlobal('navigator', undefined);
     try {
-      await expect(currentPosition('Me')).rejects.toThrow('not supported');
+      await expect(currentPosition()).rejects.toThrow('not supported');
     } finally {
       vi.unstubAllGlobals();
     }

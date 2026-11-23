@@ -13,7 +13,7 @@ A Gemini-powered assistant (free tier, `gemini-flash-lite-latest` with automatic
 
 ## Why the numbers are trustworthy
 
-The LLM **never invents numbers**. A pure, unit-tested TypeScript engine computes every figure (`src/lib/impact.ts`, `src/lib/recommend.ts`) from live data and named, sourced factors. Every percentage shown on an impact chip is computed from one of those named factors. The browser runs the engine to show the plan instantly. For the assistant, **the server runs the same engine again on its own**: the browser sends only the place and household, and the server fetches the air and weather data itself, builds the plan, and gives Gemini only those figures as fenced context. A forged request therefore cannot change the numbers or the advice the model sees (there's a test for exactly this). If no Gemini key is set, or Gemini is busy or down, everything else keeps working and the assistant says exactly what to do (add a key, or try again in a minute). It never shows a made-up answer.
+The LLM **never invents numbers**. A pure, unit-tested TypeScript engine computes every figure (`core/impact.ts`, `core/recommend.ts`) from live data and named, sourced factors. Every percentage shown on an impact chip is computed from one of those named factors. The browser runs the engine to show the plan instantly. For the assistant, **the server runs the same engine again on its own**: the browser sends only the place and household, and the server fetches the air and weather data itself, builds the plan, and gives Gemini only those figures as fenced context. A forged request therefore cannot change the numbers or the advice the model sees (there's a test for exactly this). If no Gemini key is set, or Gemini is busy or down, everything else keeps working and the assistant says exactly what to do (add a key, or try again in a minute). It never shows a made-up answer.
 
 ```
 Browser (React)                                 Server (Vercel function / Docker)
@@ -25,7 +25,7 @@ Browser (React)                                 Server (Vercel function / Docker
 └──────────────────────────────┘   text only   └──────────────────────────────────┘
 ```
 
-**The model returns a typed object, not free text.** Gemini answers under a JSON response schema with three fields: `offTopic`, `reply` (yes, no, only if, or none) and `lines`. The server renders the answer from it (`api/_lib/answer.ts`). An off-topic question gets one fixed refusal sentence. A yes/no answer opens with the word from the server's own US EPA verdict whenever there is one, whatever the model said. The lines become bullets, and code adds the fixed safety lines (carbon monoxide, inhaler, when to get medical help). The checks that remain are the ones no schema can express (`api/_lib/checks.ts`): every number must appear in the context the model saw, a Hindi answer must be in Devanagari, the reply must match the EPA verdict, and a question about going outdoors is never off-topic. A failing answer gets one repair call; any line that still fails is dropped, so an invented number never reaches the user.
+**The model returns a typed object, not free text.** Gemini answers under a JSON response schema with three fields: `offTopic`, `reply` (yes, no, only if, or none) and `lines`. The server renders the answer from it (`backend/answer.ts`). An off-topic question gets one fixed refusal sentence. A yes/no answer opens with the word from the server's own US EPA verdict whenever there is one, whatever the model said. The lines become bullets, and code adds the fixed safety lines (carbon monoxide, inhaler, when to get medical help). The checks that remain are the ones no schema can express (`backend/checks.ts`): every number must appear in the context the model saw, a Hindi answer must be in Devanagari, the reply must match the EPA verdict, and a question about going outdoors is never off-topic. A failing answer gets one repair call; any line that still fails is dropped, so an invented number never reaches the user.
 
 ## Tech (all free tier)
 
@@ -84,8 +84,8 @@ See **[DEPLOY.md](DEPLOY.md)** for step-by-step instructions: Vercel in about 5 
 **Code quality**
 - Strict TypeScript (`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`), with `typescript-eslint` strict and `jsx-a11y` strict rules.
 - SonarJS code-smell rules (cognitive complexity, nested conditionals, regex safety), a 120-character line limit and Prettier formatting, all enforced in CI with zero exceptions outside a few justified, commented lines.
-- Pure domain logic is kept apart from the UI, and plan wording lives in `src/lib/plan/copy/`, apart from the rules that choose it. Recommendation IDs are a typed union, so a typo fails to compile. Dependencies point one way: the server imports the shared domain code in `src/lib/`, never the reverse.
-- The same Web-standard request handler runs in the Vite dev server and in production.
+- Pure domain logic is kept apart from the UI, and plan wording lives in `core/plan/copy/`, apart from the rules that choose it. Recommendation IDs are a typed union, so a typo fails to compile. Dependencies point one way: the browser app (`src/`) and the server (`api/`, `server/`) import the shared, environment-neutral domain code in `core/`, which imports neither.
+- The same Web-standard request handler runs in the Vite dev server and in production; on Node, both reach it through `server/assistantRoute.ts`.
 
 **Security**
 - The API key lives only on the server and is sent in a header, never in the URL. Error responses never echo upstream text.

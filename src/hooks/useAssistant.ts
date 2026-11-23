@@ -1,29 +1,32 @@
-import { useEffect, useEffectEvent, useRef, useState } from 'react';
-import { AssistantError, HISTORY_TURNS, QUESTION_MAX, askAssistant } from '../lib/assistantClient';
-import type { AssistantMode } from '../lib/contract';
-import { t } from '../lib/i18n';
-import type { Lang, Place, Profile } from '../lib/types';
-import { scrollIntoViewRespectingMotion } from './scrollIntoView';
+import { type RefObject, useEffect, useEffectEvent, useRef, useState } from 'react';
 
-/** How long the plan must stay unchanged before Gemini is asked to explain it. */
+import type { AssistantMode } from '../../core/contract.js';
+import { t } from '../../core/i18n.js';
+import type { Lang, Place, Profile } from '../../core/types.js';
+import { askAssistant, AssistantError, HISTORY_TURNS, QUESTION_MAX, UI_ERROR_KEYS } from '../lib/assistantClient.js';
+import { scrollIntoViewRespectingMotion } from './scrollIntoView.js';
+
 export const AUTO_SUMMARY_DELAY_MS = 1200;
+
+/** Typed as possibly missing: there is no document outside a browser, and only some browsers have `connection`. */
+interface MaybeBrowser {
+  document?: Pick<Document, 'visibilityState'>;
+  navigator?: Navigator & { connection?: { saveData?: boolean } };
+}
 
 /**
  * The automatic summary is a courtesy, not something the person asked for, so it is skipped when nobody is looking
  * (a background tab) or when the browser asks to save data. The "Explain my plan" button still asks on demand.
  */
 export function autoSummaryAllowed(): boolean {
-  // No document outside a browser (server-side tests), though the DOM types say it always exists.
-  const doc = globalThis.document as Document | undefined;
-  if (doc?.visibilityState === 'hidden') return false;
-  const nav = globalThis.navigator as (Navigator & { connection?: { saveData?: boolean } }) | undefined;
-  return nav?.connection?.saveData !== true;
+  const browser: MaybeBrowser = globalThis;
+  if (browser.document?.visibilityState === 'hidden') return false;
+  return browser.navigator?.connection?.saveData !== true;
 }
 
 export interface Answer {
   text: string;
   mode: AssistantMode;
-  /** Requested on its own when the plan appeared, not by a click. */
   auto: boolean;
 }
 
@@ -37,16 +40,23 @@ export interface AssistantOptions {
   onAutoSummary?: () => void;
 }
 
-const ERROR_KEY = {
-  not_configured: 'aiNotConfigured',
-  ai_rate_limited: 'aiRateLimited',
-  ai_unavailable: 'aiError',
-  too_many_requests: 'aiTooMany',
-  daily_limit: 'aiDailyLimit',
-} as const;
+function errorMessage(lang: Lang, err: unknown): string {
+  return t(lang, UI_ERROR_KEYS[err instanceof AssistantError ? err.code : 'ai_unavailable']);
+}
 
-/** Requests to Ask Saans: the typed question and its history, the answer, what is pending, and the auto-summary. */
-export function useAssistant({ lang, place, profile, autoSummary = false, onAutoSummary }: AssistantOptions) {
+interface RunOptions {
+  /** The automatic summary: it keeps the current answer on screen until the new one arrives, and never scrolls. */
+  auto?: boolean;
+}
+
+interface AssistantState {
+  input: { question: string; setQuestion: (question: string) => void };
+  request: { pending: AssistantMode | null; busy: boolean; error: string };
+  reply: { answer: Answer | null; answerRef: RefObject<HTMLElement | null> };
+  run: (mode: AssistantMode) => Promise<void>;
+}
+
+export function useAssistant({ lang, place, profile, autoSummary, onAutoSummary }: AssistantOptions): AssistantState {
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState<Answer | null>(null);
   // The user's last few typed questions (never answers), so a follow-up like "and for my father?" has context.
@@ -58,36 +68,45 @@ export function useAssistant({ lang, place, profile, autoSummary = false, onAuto
 
   // Only the latest request may change the screen, so a slow earlier reply can never replace a newer one.
   const latest = useRef(0);
-  async function run(mode: AssistantMode, auto = false) {
+  // Only typed questions: sending the summary button's label would tell the model the person asked "Explain my plan".
+  function rememberQuestion(mode: AssistantMode, asked: string) {
+    if (mode === 'question') setHistory((h) => [...h, asked.trim().slice(0, QUESTION_MAX)].slice(-HISTORY_TURNS));
+  }
+
+  async function run(mode: AssistantMode, { auto = false }: RunOptions = {}) {
     const id = ++latest.current;
     setPending(mode);
     setError('');
     // A new question replaces the old answer at once, so nobody reads the previous reply as the new one.
     if (!auto) setAnswer(null);
+    // Captured before the call, so editing the box while the reply is on its way cannot change what is remembered.
+    const asked = question;
     try {
-      const res = await askAssistant({ lang, mode, question, place, profile, history });
+      const res = await askAssistant({ lang, mode, question: asked, place, profile, history });
       if (id !== latest.current) return;
       setAnswer({ text: res.text, mode, auto });
-      // History holds only what the person typed. A summary request is a button press, not a question, and sending
-      // its label would tell the model the person asked "Explain my plan".
-      if (mode === 'question') setHistory((h) => [...h, question.trim().slice(0, QUESTION_MAX)].slice(-HISTORY_TURNS));
+      rememberQuestion(mode, asked);
     } catch (err) {
-      if (id === latest.current)
-        setError(t(lang, ERROR_KEY[err instanceof AssistantError ? err.code : 'ai_unavailable']));
+      if (id === latest.current) setError(errorMessage(lang, err));
     } finally {
       if (id === latest.current) setPending(null);
     }
   }
 
-  useAutoSummary(autoSummary, onAutoSummary, () => void run('summary', true));
-  return { question, setQuestion, answer, answerRef, pending, busy: pending !== null, error, run };
+  useAutoSummary({ autoSummary, onAutoSummary, ask: () => void run('summary', { auto: true }) });
+  return {
+    input: { question, setQuestion },
+    request: { pending, busy: pending !== null, error },
+    reply: { answer, answerRef },
+    run,
+  };
 }
 
 /**
  * On phones the answer renders below the fold; bring an answer the person asked for into view without stealing
  * focus. The automatic summary never scrolls: the page must not jump while someone is reading the plan.
  */
-function useScrollToAnswer(answer: Answer | null) {
+function useScrollToAnswer(answer: Answer | null): RefObject<HTMLElement | null> {
   const answerRef = useRef<HTMLElement>(null);
   useEffect(() => {
     if (!answer || answer.auto) return;
@@ -96,13 +115,17 @@ function useScrollToAnswer(answer: Answer | null) {
   return answerRef;
 }
 
+interface AutoSummaryOptions {
+  autoSummary: boolean | undefined;
+  onAutoSummary: (() => void) | undefined;
+  ask: () => void;
+}
+
 /**
- * Gemini explains the plan once it settles. App remounts the assistant (its key) when the place, household or
- * language changes; unmounting cancels the timer, so clicking through the household form asks once, for the
- * final answer, not once per field. Repeat loads are served by the server's cache. A skipped summary still counts
- * as used, so a later household edit at the same place never asks on its own either.
+ * Waits for the plan to settle: a context change remounts the assistant and cancels the timer, so clicking through
+ * the form asks once, not once per field. A skipped summary still counts as used, so later edits never ask either.
  */
-function useAutoSummary(autoSummary: boolean, onAutoSummary: (() => void) | undefined, ask: () => void) {
+function useAutoSummary({ autoSummary = false, onAutoSummary, ask }: AutoSummaryOptions): void {
   const askSummary = useEffectEvent(ask);
   const autoAsked = useEffectEvent(() => onAutoSummary?.());
   useEffect(() => {

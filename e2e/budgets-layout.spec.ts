@@ -1,7 +1,8 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
-import { NARROW_WIDTH_PX } from './limits';
-import { expandRows, mockApis, openHousehold, pickDelhi } from './mocks';
+import { expect, type Page, test } from '@playwright/test';
+
+import { NARROW_WIDTH_PX } from './limits.js';
+import { expandRows, mockApis, openHousehold, pickDelhi } from './mocks.js';
 
 // Generic layout guards: overflow, contrast and squeezed titles, checked across many page states.
 
@@ -9,10 +10,10 @@ async function overflowing(page: Page): Promise<string[]> {
   return page.evaluate(() =>
     Array.from(document.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6, p, button, li'))
       .filter((e) => e.offsetParent !== null && !e.closest('.visually-hidden') && e.scrollWidth > e.clientWidth + 1)
-      .map(
-        (e) =>
-          `${e.tagName.toLowerCase()}.${e.className} (${e.scrollWidth} > ${e.clientWidth}): ${e.textContent.slice(0, 60)}`,
-      ),
+      .map((e) => {
+        const size = `${e.scrollWidth} > ${e.clientWidth}`;
+        return `${e.tagName.toLowerCase()}.${e.className} (${size}): ${e.textContent.slice(0, 60)}`;
+      }),
   );
 }
 

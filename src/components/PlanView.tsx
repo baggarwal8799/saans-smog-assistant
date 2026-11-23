@@ -1,15 +1,18 @@
-import { co2Summary, doseHeadline, impactChips } from '../lib/chips';
-import { formatNumber, t, tn } from '../lib/i18n';
-import type { Lang, Plan, RecCategory, Recommendation } from '../lib/types';
+import type { ReactElement } from 'react';
+
+import { co2Summary, doseHeadline, impactChips } from '../../core/chips.js';
+import { formatNumber, t, tn } from '../../core/i18n.js';
+import type { Plan, RecCategory, Recommendation } from '../../core/types.js';
+import { useCurrentLang } from '../hooks/useCurrentLang.js';
 
 interface Props {
-  lang: Lang;
   plan: Plan;
 }
 
 const CATEGORIES: readonly RecCategory[] = ['routine', 'indoor', 'swap', 'community'];
 
-function ImpactChips({ lang, rec }: Readonly<{ lang: Lang; rec: Recommendation }>) {
+function ImpactChips({ rec }: Readonly<{ rec: Recommendation }>) {
+  const lang = useCurrentLang();
   return (
     <span className="chips">
       <span className="visually-hidden">{t(lang, 'impact')}: </span>
@@ -22,8 +25,8 @@ function ImpactChips({ lang, rec }: Readonly<{ lang: Lang; rec: Recommendation }
   );
 }
 
-/** One of the top three actions: full text visible, the working one tap away. */
-function Step({ lang, rec }: Readonly<{ lang: Lang; rec: Recommendation }>) {
+function Step({ rec }: Readonly<{ rec: Recommendation }>) {
+  const lang = useCurrentLang();
   return (
     <li className="step">
       <article aria-labelledby={`rec-${rec.id}`}>
@@ -32,7 +35,7 @@ function Step({ lang, rec }: Readonly<{ lang: Lang; rec: Recommendation }>) {
         </h4>
         <p className="step-kind">{t(lang, rec.category)}</p>
         <p>{rec.detail}</p>
-        <ImpactChips lang={lang} rec={rec} />
+        <ImpactChips rec={rec} />
         <details className="why">
           <summary>
             {t(lang, 'whyNumber')}
@@ -46,8 +49,8 @@ function Step({ lang, rec }: Readonly<{ lang: Lang; rec: Recommendation }>) {
   );
 }
 
-/** Everything else: one line with its impact, expanding to the detail and the working. */
-function Row({ lang, rec }: Readonly<{ lang: Lang; rec: Recommendation }>) {
+function Row({ rec }: Readonly<{ rec: Recommendation }>) {
+  const lang = useCurrentLang();
   return (
     <li className="row-item">
       <details>
@@ -55,7 +58,7 @@ function Row({ lang, rec }: Readonly<{ lang: Lang; rec: Recommendation }>) {
           <span className="row-title" id={`rec-${rec.id}`}>
             {rec.title}
           </span>
-          <ImpactChips lang={lang} rec={rec} />
+          <ImpactChips rec={rec} />
         </summary>
         <div className="row-body">
           <p>{rec.detail}</p>
@@ -70,28 +73,28 @@ function Row({ lang, rec }: Readonly<{ lang: Lang; rec: Recommendation }>) {
 
 const STEP_HEADINGS = { safety: 'safetyHeading', first: 'doFirstHeading' } as const;
 
-/** A numbered group of full steps: "Safety first" and "Do these first" share it. */
 interface StepsProps {
-  lang: Lang;
   kind: keyof typeof STEP_HEADINGS;
   recs: readonly Recommendation[];
 }
 
-function Steps({ lang, kind, recs }: Readonly<StepsProps>) {
+function Steps({ kind, recs }: Readonly<StepsProps>) {
+  const lang = useCurrentLang();
   if (recs.length === 0) return null;
   return (
     <section aria-labelledby={`${kind}-heading`} className={`steps ${kind}`}>
       <h3 id={`${kind}-heading`}>{t(lang, STEP_HEADINGS[kind])}</h3>
       <ol className="steps-list">
         {recs.map((r) => (
-          <Step key={r.id} lang={lang} rec={r} />
+          <Step key={r.id} rec={r} />
         ))}
       </ol>
     </section>
   );
 }
 
-function DoseBars({ lang, plan }: Readonly<Props>) {
+function DoseBars({ plan }: Readonly<Props>) {
+  const lang = useCurrentLang();
   const { baselineUg, withPlanUg, people } = plan.dose;
   const each = baselineUg - withPlanUg;
   const width = (v: number) => `${Math.max(3, Math.round((v / Math.max(baselineUg, 1)) * 100))}%`;
@@ -129,7 +132,8 @@ function DoseBars({ lang, plan }: Readonly<Props>) {
   );
 }
 
-export function PlanView({ lang, plan }: Readonly<Props>) {
+export function PlanView({ plan }: Readonly<Props>): ReactElement {
+  const lang = useCurrentLang();
   // Life-safety items get their own group, so they never take a "Do these first" slot.
   const safety = plan.recommendations.filter((r) => r.safety);
   const urgent = plan.recommendations.filter((r) => !r.safety && r.priority === 1);
@@ -140,12 +144,12 @@ export function PlanView({ lang, plan }: Readonly<Props>) {
     <section aria-labelledby="plan-heading" className="plan">
       <h2 id="plan-heading">{t(lang, 'planHeading')}</h2>
 
-      <Steps lang={lang} kind="safety" recs={safety} />
-      <Steps lang={lang} kind="first" recs={urgent} />
+      <Steps kind="safety" recs={safety} />
+      <Steps kind="first" recs={urgent} />
 
       <section aria-labelledby="impact-heading" className="impact-summary">
         <h3 id="impact-heading">{t(lang, 'impactHeading')}</h3>
-        <DoseBars lang={lang} plan={plan} />
+        <DoseBars plan={plan} />
         <p className="co2-line">
           <span className="co2-label">{t(lang, 'co2Label')}: </span>
           {summary.strong ? <strong>{summary.text}</strong> : summary.text}
@@ -153,23 +157,30 @@ export function PlanView({ lang, plan }: Readonly<Props>) {
         <p className="note">{t(lang, 'doseNote')}</p>
       </section>
 
-      <section aria-labelledby="more-heading" className="more">
-        <h3 id="more-heading">{t(lang, 'moreHeading')}</h3>
-        {CATEGORIES.map((key) => {
-          const recs = rest.filter((r) => r.category === key);
-          if (recs.length === 0) return null;
-          return (
-            <section key={key} aria-labelledby={`cat-${key}`} className="category">
-              <h4 id={`cat-${key}`}>{t(lang, key)}</h4>
-              <ul className="rows">
-                {recs.map((r) => (
-                  <Row key={r.id} lang={lang} rec={r} />
-                ))}
-              </ul>
-            </section>
-          );
-        })}
-      </section>
+      <MoreWays recs={rest} />
+    </section>
+  );
+}
+
+function MoreWays({ recs }: Readonly<{ recs: Recommendation[] }>) {
+  const lang = useCurrentLang();
+  return (
+    <section aria-labelledby="more-heading" className="more">
+      <h3 id="more-heading">{t(lang, 'moreHeading')}</h3>
+      {CATEGORIES.map((key) => {
+        const inCategory = recs.filter((r) => r.category === key);
+        if (inCategory.length === 0) return null;
+        return (
+          <section key={key} aria-labelledby={`cat-${key}`} className="category">
+            <h4 id={`cat-${key}`}>{t(lang, key)}</h4>
+            <ul className="rows">
+              {inCategory.map((r) => (
+                <Row key={r.id} rec={r} />
+              ))}
+            </ul>
+          </section>
+        );
+      })}
     </section>
   );
 }

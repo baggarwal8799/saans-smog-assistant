@@ -1,12 +1,18 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { ReactElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { profile } from '../test/fixtures';
-import { ProfileEditor } from './ProfileEditor';
-import { ProfileForm, householdLine } from './ProfileForm';
 
-const editor = (lang: 'en' | 'hi', p: ReturnType<typeof profile>, onChange = vi.fn()) =>
-  render(<ProfileEditor lang={lang} profile={p} base="h" describedBy="saved" onChange={onChange} />);
+import type { Lang } from '../../core/types.js';
+import { profile } from '../../test/fixtures.js';
+import { LanguageContext } from '../hooks/useCurrentLang.js';
+import { ProfileEditor } from './ProfileEditor.js';
+import { householdLine, ProfileForm } from './ProfileForm.js';
+
+const inLang = (lang: Lang, ui: ReactElement) => render(<LanguageContext value={lang}>{ui}</LanguageContext>);
+const editor = (lang: Lang, p: ReturnType<typeof profile>, onChange = vi.fn()) =>
+  inLang(lang, <ProfileEditor profile={p} base="h" describedBy="saved" onChange={onChange} />);
+const form = () => inLang('en', <ProfileForm profile={profile({})} onChange={() => undefined} />);
 
 describe('ProfileForm commute distance', () => {
   it('bounds the distance box by the chosen mode and says the bound', () => {
@@ -26,10 +32,22 @@ describe('ProfileForm commute distance', () => {
   });
 });
 
+describe('ProfileEditor selects', () => {
+  it('passes on a listed option and ignores a value that is not one', () => {
+    const onChange = vi.fn();
+    editor('en', profile({ cooking: 'lpg' }), onChange);
+    const select = screen.getByLabelText('Cooking fuel');
+    fireEvent.change(select, { target: { value: 'not-a-fuel' } });
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.change(select, { target: { value: 'electric' } });
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ cooking: 'electric' }));
+  });
+});
+
 describe('ProfileForm loads its editor on demand', () => {
-  it('has no form in the page until "Edit household" is opened, then shows a busy placeholder and the fields', async () => {
+  it('has no form until "Edit household" is opened, then shows a busy placeholder and the fields', async () => {
     const user = userEvent.setup();
-    const { container } = render(<ProfileForm lang="en" profile={profile({})} onChange={() => undefined} />);
+    const { container } = form();
     const edit = screen.getByRole('button', { name: 'Edit household' });
     expect(container.querySelector('form')).toBeNull();
     // Nothing to control while closed, so no dangling aria-controls.
@@ -46,7 +64,7 @@ describe('ProfileForm loads its editor on demand', () => {
   });
 
   it('prefetches the editor on hover and focus without opening it', () => {
-    const { container } = render(<ProfileForm lang="en" profile={profile({})} onChange={() => undefined} />);
+    const { container } = form();
     const edit = screen.getByRole('button', { name: 'Edit household' });
     fireEvent.pointerEnter(edit);
     fireEvent.focus(edit);

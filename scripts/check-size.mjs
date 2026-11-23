@@ -1,4 +1,5 @@
-// Fails if the project's source files exceed the submission limit (10 MB) minus a safety margin.
+// @ts-check
+// 5 MB, not 10: a safety margin under the 10 MB submission cap.
 // Uses git's file list when available, otherwise walks the folder (e.g. when unpacked from a zip).
 import { execFileSync } from 'node:child_process';
 import { readdirSync, statSync } from 'node:fs';
@@ -8,6 +9,7 @@ const LIMIT_BYTES = 5 * 1024 * 1024;
 const SKIP = new Set([
   'node_modules',
   'dist',
+  'dist-server',
   'coverage',
   '.git',
   '.vercel',
@@ -28,6 +30,10 @@ function gitFiles() {
   }
 }
 
+/**
+ * @param {string} dir
+ * @returns {string[]}
+ */
 function walk(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
     if (SKIP.has(e.name) || e.name === '.env') return [];
@@ -37,7 +43,7 @@ function walk(dir) {
 }
 
 const files = gitFiles() ?? walk('.');
-const total = files.reduce((sum, f) => {
+const total = files.reduce((/** @type {number} */ sum, /** @type {string} */ f) => {
   try {
     return sum + statSync(f).size;
   } catch {

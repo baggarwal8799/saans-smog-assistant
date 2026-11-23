@@ -80,6 +80,15 @@ p {
   color: var(--bad);
   font-weight: 600;
 }
+/* The ErrorBoundary fallback: the message and reload button, stacked in a readable column. */
+.app-crashed {
+  display: grid;
+  gap: 1rem;
+  justify-items: start;
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 3rem 1rem;
+}
 
 /* ---------- Controls ---------- */
 

@@ -1,23 +1,26 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { App } from './App';
-import { clearAirCache } from './lib/aqi';
-import { LANG_KEY } from './lib/profile';
-import { axeViolations, mockNetwork } from './test/network';
+
+import { resetAirClient } from '../test/browserAir.js';
+import { axeViolations, mockNetwork } from '../test/network.js';
+import { App } from './App.js';
+import { LANG_KEY } from './lib/storage.js';
+
+vi.mock('./lib/browserAir.js', () => import('../test/browserAir.js'));
 
 // As in the browser build: nothing preloaded, so Hindi arrives as its own chunk. The gate holds that chunk back
 // until the test lets it through, and can make it fail as an offline fetch would.
 const gate = vi.hoisted(() => ({ open: (): void => undefined, fail: false, promise: Promise.resolve() }));
-vi.mock('./lib/i18n-preloaded', () => ({ preloaded: {} }));
-vi.mock('./lib/i18n-hi', async (importOriginal) => {
+vi.mock('../core/i18n-preloaded.js', () => ({ preloaded: {} }));
+vi.mock('../core/i18n-hi.js', async (importOriginal) => {
   await gate.promise;
   if (gate.fail) throw new Error('offline');
   return importOriginal();
 });
 
 beforeEach(() => {
-  clearAirCache();
+  resetAirClient();
   gate.fail = false;
   gate.promise = new Promise<void>((r) => (gate.open = r));
 });
@@ -28,8 +31,7 @@ describe('App: the Hindi dictionary loads on demand', () => {
   it('stays English through a failed fetch and while loading, then switches in one step', async () => {
     const user = userEvent.setup();
     mockNetwork();
-    // Saved Hindi whose chunk is not in memory (main.tsx could not fetch it): the page starts in English, and the
-    // saved choice is kept for the next visit.
+    // Saved Hindi whose chunk could not be fetched: the page starts in English, and keeps the choice for next time.
     localStorage.setItem(LANG_KEY, 'hi');
     const { container } = render(<App />);
     expect(document.documentElement.lang).toBe('en');

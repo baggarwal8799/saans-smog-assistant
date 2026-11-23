@@ -74,7 +74,7 @@ export async function expandRows(page: Page, count: number) {
 }
 
 /** A realistic success body for POST /api/assistant (contract.ts AssistantResponse): a verdict line, then bullets. */
-export const ASSISTANT_ANSWER = {
+const ASSISTANT_ANSWER = {
   question: [
     'No. At 7:30 the air is still inside the smog trap, so a run outdoors would breathe in the worst of it.',
     '• Run after 13:00, when PM2.5 falls to about 90.',

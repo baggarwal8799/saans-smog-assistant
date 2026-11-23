@@ -1,14 +1,17 @@
-import { aqiLevel } from '../lib/aqi';
-import { bestLabels, cautious } from '../lib/concern';
-import { placeLabel } from '../lib/geo';
-import { aqiKey, formatNumber, pollutantKey, t, tn, type MessageKey } from '../lib/i18n';
-import { weatherFigure } from '../lib/plan/figures';
-import { spanLabel } from '../lib/plan/spans';
-import type { AirReport, Lang, Plan, TimeWindow } from '../lib/types';
-import { AirRibbon } from './AirRibbon';
+import type { ReactElement } from 'react';
+
+import { aqiLevel } from '../../core/aqi.js';
+import { cautious } from '../../core/concern.js';
+import { weatherFigure } from '../../core/figures.js';
+import { aqiKey, formatNumber, type MessageKey, pollutantKey, t, tn } from '../../core/i18n.js';
+import { placeLabel } from '../../core/place.js';
+import { spanLabel } from '../../core/spans.js';
+import type { AirReport, Lang, Plan, Pollutant, TimeWindow } from '../../core/types.js';
+import { useCurrentLang } from '../hooks/useCurrentLang.js';
+import { bestLabels } from '../lib/windowLabels.js';
+import { AirRibbon } from './AirRibbon.js';
 
 interface Props {
-  lang: Lang;
   report: AirReport;
   plan: Plan;
 }
@@ -24,18 +27,24 @@ function windowText(lang: Lang, w: TimeWindow, now: string): string {
  * The averaging period behind the US AQI number, which follows its main pollutant (US EPA): particles use the past
  * 24 h, ozone the past 8 h, NO₂ the current hour. The cigarette figure uses a different one, the next 24 h forecast.
  */
-const AQI_BASIS: Record<string, MessageKey> = { o3: 'aqiBasisO3', no2: 'aqiBasisNo2' };
+const AQI_BASIS: Record<Pollutant, MessageKey> = {
+  pm25: 'aqiBasis',
+  pm10: 'aqiBasis',
+  o3: 'aqiBasisO3',
+  no2: 'aqiBasisNo2',
+};
 
-export function AirNow({ lang, report, plan }: Readonly<Props>) {
+export function AirNow({ report, plan }: Readonly<Props>): ReactElement {
+  const lang = useCurrentLang();
   const { current } = report;
   return (
     <section aria-labelledby="air-heading" className="air-now">
       <h2 id="air-heading" tabIndex={-1} className="air-place">
         {t(lang, 'airHeadingFor', { place: placeLabel(report.place) })}
       </h2>
-      <AirReading lang={lang} report={report} plan={plan} />
-      <AirForecast lang={lang} report={report} plan={plan} />
-      {plan.smogTrap && <SmogTrap lang={lang} trap={plan.smogTrap} now={current.time} />}
+      <AirReading report={report} plan={plan} />
+      <AirForecast report={report} plan={plan} />
+      {plan.smogTrap && <SmogTrap trap={plan.smogTrap} now={current.time} />}
       <p className="note air-updated">
         {t(lang, 'windowBasis')} {t(lang, 'updated')}:{' '}
         <time dateTime={current.time}>{current.time.replace('T', ' ')}</time>
@@ -44,7 +53,8 @@ export function AirNow({ lang, report, plan }: Readonly<Props>) {
   );
 }
 
-function AirReading({ lang, report, plan }: Readonly<Props>) {
+function AirReading({ report, plan }: Readonly<Props>) {
+  const lang = useCurrentLang();
   const { current } = report;
   const level = aqiLevel(current.usAqi);
   return (
@@ -56,7 +66,7 @@ function AirReading({ lang, report, plan }: Readonly<Props>) {
         </p>
         <div className="reading-words">
           <p className="aqi-label">{t(lang, aqiKey(level))}</p>
-          <p className="aqi-basis">{t(lang, AQI_BASIS[current.dominant ?? ''] ?? 'aqiBasis')}</p>
+          <p className="aqi-basis">{t(lang, current.dominant ? AQI_BASIS[current.dominant] : 'aqiBasis')}</p>
           <p className="cigarettes">{tn(lang, 'cigarettes', plan.cigarettesPerDay)}</p>
           {current.dominant && (
             <p className="dominant">
@@ -66,13 +76,14 @@ function AirReading({ lang, report, plan }: Readonly<Props>) {
         </div>
       </div>
       <p className="note metrics-basis">{t(lang, 'metricsBasis')}</p>
-      <Metrics lang={lang} current={current} />
+      <Metrics current={current} />
       {(current.dominant === 'pm25' || current.dominant === 'pm10') && <p className="note">{t(lang, 'aqiNote')}</p>}
     </div>
   );
 }
 
-function Metrics({ lang, current }: Readonly<{ lang: Lang; current: AirReport['current'] }>) {
+function Metrics({ current }: Readonly<{ current: AirReport['current'] }>) {
+  const lang = useCurrentLang();
   const metrics = [
     { key: 'pm25', value: current.pm25 },
     { key: 'pm10', value: current.pm10 },
@@ -93,22 +104,18 @@ function Metrics({ lang, current }: Readonly<{ lang: Lang; current: AirReport['c
   );
 }
 
-function AirForecast({ lang, report, plan }: Readonly<Props>) {
+function AirForecast({ report, plan }: Readonly<Props>) {
+  const lang = useCurrentLang();
   const now = report.current.time;
   // "Stay in" only when the plan says so; otherwise the dirtiest hours are just the least clean.
   const stayIn = cautious(plan.concern);
+  const bestKey = bestLabels(plan.bestWindow, { avoidAllOutdoors: plan.avoidAllOutdoors }).window;
   return (
     <div className="air-forecast">
-      <AirRibbon
-        lang={lang}
-        hours={report.hourly.slice(1)}
-        best={plan.bestWindow}
-        worst={plan.worstWindow}
-        stayIn={stayIn}
-      />
+      <AirRibbon hours={report.hourly.slice(1)} best={plan.bestWindow} worst={plan.worstWindow} stayIn={stayIn} />
       <ul className="windows">
         <li className="window good">
-          <strong>{t(lang, bestLabels(plan.bestWindow, plan.avoidAllOutdoors).window)}:</strong>{' '}
+          <strong>{t(lang, bestKey)}:</strong>{' '}
           {plan.bestWindow ? windowText(lang, plan.bestWindow, now) : t(lang, 'noWindow')}
         </li>
         {plan.worstWindow && (
@@ -122,7 +129,8 @@ function AirForecast({ lang, report, plan }: Readonly<Props>) {
   );
 }
 
-function SmogTrap({ lang, trap, now }: Readonly<{ lang: Lang; trap: NonNullable<Plan['smogTrap']>; now: string }>) {
+function SmogTrap({ trap, now }: Readonly<{ trap: NonNullable<Plan['smogTrap']>; now: string }>) {
+  const lang = useCurrentLang();
   return (
     <p className="trap">
       <strong>{t(lang, 'trapTitle')}</strong>{' '}
